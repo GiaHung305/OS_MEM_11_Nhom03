@@ -19,6 +19,13 @@ Hiện tại repo có bộ khung giao diện để kiểm tra môi trường. Th
 - `report/`: báo cáo, bảng kiểm thử và bằng chứng tiến độ.
 - `CMakeLists.txt`: hướng dẫn CMake biên dịch chương trình.
 
+## Đặc tả và dữ liệu mẫu
+
+- [Đặc tả mô phỏng](report/spec.md): phạm vi, giả định, cách chọn/tách/gộp vùng, lỗi và cách nối các module.
+- [Cấu hình mẫu](input/config_sample.csv): tổng bộ nhớ, đơn vị cấp phát và chiến lược.
+- [Thao tác mẫu hợp lệ](input/events_sample.csv): các lệnh ALLOC/FREE.
+- [Thao tác mẫu không hợp lệ](input/events_invalid_sample.csv): dữ liệu dùng để kiểm tra báo lỗi.
+
 ## Cài đặt trên Windows
 
 1. Cài Qt phiên bản 6 bằng Qt Online Installer.
