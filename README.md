@@ -2,20 +2,60 @@
 
 Mô phỏng cấp phát và thu hồi vùng nhớ bằng First-Fit, Best-Fit và Worst-Fit.
 
-- Ngôn ngữ: C++.
-- Yêu cầu sản phẩm: GUI chạy trên Windows, đọc/xuất CSV.
-- Trạng thái: mới tạo cấu trúc thư mục, chưa có ứng dụng.
+## Công nghệ đã chốt
+
+- Ngôn ngữ: C++17
+- Giao diện: Qt Widgets
+- Công cụ biên dịch dự án: CMake
+- Hệ điều hành cần chạy: Windows
+
+Hiện tại repo có bộ khung giao diện để kiểm tra môi trường. Thuật toán, CSV và sơ đồ bộ nhớ sẽ được làm ở các công việc tiếp theo.
 
 ## Cấu trúc
 
-- `source/`: mã nguồn.
+- `source/`: mã nguồn C++.
 - `input/`: CSV đầu vào mẫu.
-- `output/`: CSV kết quả và trace mẫu.
+- `output/`: CSV kết quả và nhật ký mẫu.
 - `report/`: báo cáo, bảng kiểm thử và bằng chứng tiến độ.
+- `CMakeLists.txt`: hướng dẫn CMake biên dịch chương trình.
 
-## Cài đặt và chạy
+## Cài đặt trên Windows
 
-Sẽ bổ sung khi có bộ khung ứng dụng.
+1. Cài Qt phiên bản 6 bằng Qt Online Installer.
+2. Trong trình cài đặt, chọn Qt 6 cho MinGW 64-bit, Qt Creator và CMake.
+3. Mở Qt Creator, chọn **Open Project** và mở file `CMakeLists.txt`.
+4. Chọn bộ Qt MinGW 64-bit mà Qt Creator tìm thấy.
+5. Bấm **Configure Project**, sau đó bấm **Run**.
+
+Khi chạy đúng, cửa sổ có tiêu đề **OS_MEM_11 - Memory Allocation Simulator** sẽ hiện ra.
+
+## Biên dịch bằng dòng lệnh
+
+Mở terminal đã có môi trường Qt:
+
+```bash
+cmake -S . -B build
+cmake --build build
+```
+
+File chạy nằm trong thư mục `build/`. Đường dẫn cụ thể có thể khác tùy bộ biên dịch.
+
+## Quy tắc làm việc nhóm
+
+- Mỗi công việc dùng một nhánh, ví dụ: `feat/QT02-01-first-fit`.
+- Nội dung commit phải có mã việc, ví dụ: `feat: implement first-fit [QT02-01]`.
+- Không đưa mật khẩu, token, thư mục `build/` hoặc file cấu hình cá nhân lên Git.
+- Người làm gửi pull request; người kiểm tra chạy lại trước khi xác nhận hoàn thành.
+
+## Kiểm tra QT01-01
+
+TV3 tải repo về máy Windows và làm theo README:
+
+- [ ] CMake cấu hình thành công.
+- [ ] Chương trình biên dịch thành công.
+- [ ] Cửa sổ mở được.
+- [ ] Nút **Đóng** hoạt động.
+- [ ] Ghi ngày kiểm tra và kết quả Đạt/Cần sửa vào bảng tiến độ.
 
 ## Thành viên và demo
 
