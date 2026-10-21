@@ -1,0 +1,6 @@
+step,operation,pid,size_kb
+1,ALLOC,P1,100
+2,ALLOC,P2,-20
+3,CREATE,P3,80
+4,ALLOC,,40
+5,FREE,P9,20

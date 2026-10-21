@@ -16,15 +16,19 @@ Hiện tại repo có bộ khung giao diện để kiểm tra môi trường. Th
 - `source/`: mã nguồn C++.
 - `input/`: CSV đầu vào mẫu.
 - `output/`: CSV kết quả và nhật ký mẫu.
+- `tests/`: mã kiểm thử và kết quả tính tay.
 - `report/`: báo cáo, bảng kiểm thử và bằng chứng tiến độ.
 - `CMakeLists.txt`: hướng dẫn CMake biên dịch chương trình.
 
 ## Đặc tả và dữ liệu mẫu
 
 - [Đặc tả mô phỏng](report/spec.md): phạm vi, giả định, cách chọn/tách/gộp vùng, lỗi và cách nối các module.
-- [Cấu hình mẫu](input/config_sample.csv): tổng bộ nhớ, đơn vị cấp phát và chiến lược.
-- [Thao tác mẫu hợp lệ](input/events_sample.csv): các lệnh ALLOC/FREE.
-- [Thao tác mẫu không hợp lệ](input/events_invalid_sample.csv): dữ liệu dùng để kiểm tra báo lỗi.
+- [Cấu hình mẫu](input/config_sample.csv): tổng bộ nhớ 1024 KB, đơn vị cấp phát 4 KB và chạy cả ba chiến lược.
+- [Dữ liệu bình thường](input/events_normal.csv): cấp phát, thu hồi và tạo các vùng trống khác nhau.
+- [Dữ liệu tie](input/events_tie.csv): tạo hai vùng trống bằng nhau để kiểm tra chọn địa chỉ thấp nhất.
+- [Dữ liệu biên](input/events_boundary.csv): cấp đúng toàn bộ bộ nhớ và thu hồi để gộp lại.
+- [Dữ liệu thiếu vùng liên tục](input/events_out_of_memory.csv): tổng bộ nhớ trống đủ nhưng không có một vùng đủ lớn.
+- [Dữ liệu không hợp lệ](input/events_invalid.csv): kích thước âm, thao tác sai, thiếu PID và FREE có size.
 
 ## Cài đặt trên Windows
 
