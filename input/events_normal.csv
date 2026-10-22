@@ -6,3 +6,6 @@ step,operation,pid,size_kb
 5,ALLOC,P4,80
 6,FREE,P2,
 7,ALLOC,P5,180
+8,FREE,P4,
+9,ALLOC,P6,200
+10,FREE,P3,
