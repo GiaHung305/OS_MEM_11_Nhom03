@@ -66,3 +66,7 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Local Codex guidance; keep it out of the repository
+/AGENTS.md
+/CODEX_PROJECT_CONTEXT_OS_MEM_11.md

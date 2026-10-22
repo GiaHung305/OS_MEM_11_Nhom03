@@ -112,7 +112,7 @@ total_memory_kb,allocation_unit_kb,strategy
 
 `ALL` nghĩa là chạy cùng một danh sách thao tác độc lập với cả ba chiến lược để so sánh.
 
-## 8. File `input/events_sample.csv`
+## 8. File sự kiện (ví dụ `input/events_normal.csv`)
 
 ```csv
 step,operation,pid,size_kb
@@ -136,7 +136,7 @@ Quy tắc khi chạy:
 - File rỗng, thiếu cột, sai kiểu dữ liệu hoặc sai tên thao tác: từ chối chạy và báo dòng gây lỗi.
 - Một dòng lỗi không được làm chương trình bị crash.
 
-File `input/events_invalid_sample.csv` là ví dụ dữ liệu sai để kiểm tra xử lý lỗi.
+File `input/events_invalid.csv` là ví dụ dữ liệu sai để kiểm tra xử lý lỗi.
 
 ## 9. Dữ liệu đầu ra
 
@@ -184,7 +184,7 @@ flowchart TD
 
 Nguyên tắc quan trọng: GUI chỉ gửi thao tác và hiển thị `StepResult`. GUI không tự chọn vùng nhớ và không chứa thuật toán First-Fit, Best-Fit hoặc Worst-Fit.
 
-Cấu trúc dữ liệu trao đổi:
+Ví dụ rút gọn về dữ liệu trao đổi và API dự kiến (không phải code đã triển khai). Định nghĩa kiểu đầy đủ hiện hành nằm trong `source/models.h`, gồm cả `Strategy::All` dành cho config/controller. API Memory Manager và Simulation Controller chưa được khai báo; CSV Handler mới có hàm đọc/ghi bảng dữ liệu thô:
 
 ```cpp
 enum class Strategy { FirstFit, BestFit, WorstFit };
