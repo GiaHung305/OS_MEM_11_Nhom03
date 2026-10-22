@@ -4,3 +4,5 @@ step,operation,pid,size_kb
 3,CREATE,P3,80
 4,ALLOC,,40
 5,FREE,P9,20
+6,ALLOC,P4,0
+7,FREE,P1,50
