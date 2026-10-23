@@ -9,7 +9,29 @@ Mô phỏng cấp phát và thu hồi vùng nhớ bằng First-Fit, Best-Fit và
 - Công cụ biên dịch dự án: CMake
 - Hệ điều hành cần chạy: Windows
 
-Hiện tại repo có bộ khung giao diện để kiểm tra môi trường. Thuật toán, CSV và sơ đồ bộ nhớ sẽ được làm ở các công việc tiếp theo.
+Hiện tại GUI vẫn là bộ khung kiểm tra môi trường. Core đã có First/Best/Worst-Fit, cấp phát/thu hồi, làm tròn theo allocation unit, metrics và snapshot từng event; có test chạy bằng CTest. CSV mới đọc/ghi bảng thô, chưa có validation theo model. Controller và sơ đồ bộ nhớ chưa triển khai.
+
+## Core và kiểm thử
+
+`MemoryManager(totalMemoryKb, allocationUnitKb = 4, strategy = Strategy::FirstFit)`
+dùng các kiểu trong `source/models.h`. Mỗi manager chạy một strategy cụ thể;
+`Strategy::All` phải được Controller tách thành ba manager độc lập.
+
+- Gọi `apply(Event)` hoặc `allocate(step, pid, requestedSizeKb)` / `deallocate(step, pid)` để nhận `StepResult` có snapshot và metrics, kể cả event thất bại.
+- Unit `1 KB` cấp đúng kích thước nguyên KB yêu cầu; unit `4 KB` làm tròn `5 KB` thành `8 KB`, internal fragmentation `3 KB`. Hole dư không phải internal fragmentation.
+- `getBlocks()` trả bản sao; `getMetrics()` tính các chỉ số của state hiện tại; `reset()` giữ config và phục hồi một hole ban đầu.
+- Các wrapper PID số `allocateFirstFit/BestFit/WorstFit` và `deallocate(int)` vẫn có, dùng cùng logic Core. Constructor một tham số nay dùng unit mặc định `4 KB`; truyền unit `1` nếu cần cách cấp đúng kích thước cũ.
+- `Block` riêng đã được thay bằng `MemoryBlock`: dùng `startAddressKb`, `allocatedSizeKb`, `requestedSizeKb`, `processId` chuỗi và `isFree`. Caller bên ngoài repo dùng field cũ cần cập nhật; hiện GUI/Controller trong repo chưa gọi API cũ.
+
+Sau bước configure/build bên dưới, chạy trong cùng terminal:
+
+```powershell
+ctest --test-dir build --output-on-failure
+```
+
+Test Core dùng expected tính tay cho lựa chọn ba chiến lược, tie-break, làm tròn,
+phân mảnh, merge, lỗi không đổi state, reset, snapshot độc lập và biên số nguyên.
+Chưa có test tích hợp CSV/Controller/GUI hay benchmark.
 
 ## Cấu trúc
 

@@ -184,32 +184,29 @@ flowchart TD
 
 Nguyên tắc quan trọng: GUI chỉ gửi thao tác và hiển thị `StepResult`. GUI không tự chọn vùng nhớ và không chứa thuật toán First-Fit, Best-Fit hoặc Worst-Fit.
 
-Ví dụ rút gọn về dữ liệu trao đổi và API dự kiến (không phải code đã triển khai). Định nghĩa kiểu đầy đủ hiện hành nằm trong `source/models.h`, gồm cả `Strategy::All` dành cho config/controller. API Memory Manager và Simulation Controller chưa được khai báo; CSV Handler mới có hàm đọc/ghi bảng dữ liệu thô:
+Core hiện dùng các model trong `source/models.h` và API trong `source/memory_manager.h`. Mỗi manager giữ một strategy cụ thể; `Strategy::All` dành cho Controller tạo ba manager độc lập. `apply(Event)` trả `StepResult` có blocks/metrics sau event, kể cả thất bại. Controller chưa triển khai; CSV Handler mới có hàm đọc/ghi bảng thô.
+
+API Core rút gọn đã triển khai (các API typed CSV bên dưới vẫn là dự kiến):
 
 ```cpp
-enum class Strategy { FirstFit, BestFit, WorstFit };
-
-struct StepResult {
-    int step;
-    bool success;
-    std::string message;
-    std::vector<MemoryBlock> blocks;
-};
-
 class MemoryManager {
 public:
-    MemoryManager(int totalMemoryKb, int allocationUnitKb);
+    explicit MemoryManager(int totalMemoryKb, int allocationUnitKb = 4,
+                           Strategy strategy = Strategy::FirstFit);
+    StepResult apply(const Event& event);
     void reset();
     StepResult allocate(
         int step,
         const std::string& processId,
-        int requestedSizeKb,
-        Strategy strategy
+        int requestedSizeKb
     );
     StepResult deallocate(int step, const std::string& processId);
     std::vector<MemoryBlock> getBlocks() const;
+    MemoryMetrics getMetrics() const;
+    bool validateState() const;
 };
 
+// API typed CSV du kien, chua trien khai:
 Config readConfig(const std::string& path);
 std::vector<Event> readEvents(const std::string& path);
 void writeTrace(const std::string& path,
