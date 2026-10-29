@@ -44,7 +44,7 @@ Khi sửa mã nguồn, thiết lập PATH như trên và chạy lại `cmake --b
 Sau khi build, chạy:
 
 ```powershell
-ctest --test-dir build --output-on-failure
+& "C:\Qt\Tools\CMake_64\bin\ctest.exe" --test-dir build --output-on-failure
 ```
 
 Hiện CTest kiểm tra phần thuật toán. Chưa có kiểm thử tự động cho giao diện.
