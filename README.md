@@ -57,7 +57,3 @@ Hiện CTest kiểm tra phần thuật toán. Chưa có kiểm thử tự độn
 - `tests/`: kiểm thử và kết quả mong đợi.
 - `report/`: đặc tả và báo cáo. Xem [spec.md](report/spec.md) để biết quy tắc mô phỏng.
 - `build/`: chương trình và file sinh khi build, không đưa lên Git.
-
-## Làm việc nhóm
-
-Mỗi công việc dùng một nhánh riêng và gửi pull request để kiểm tra. Commit có mã việc nếu đã được phân công. Không đưa mật khẩu, token, file cấu hình cá nhân hoặc thư mục `build/` lên Git.
