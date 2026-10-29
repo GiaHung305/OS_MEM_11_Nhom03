@@ -1,6 +1,6 @@
 # Đặc tả mô phỏng cấp phát bộ nhớ liên tục
 
-Tài liệu này chốt cách mô phỏng, dữ liệu CSV và cách các phần của chương trình trao đổi dữ liệu. Đây là cơ sở để TV2 làm thuật toán, TV5 làm CSV và TV4 làm giao diện mà không phải tự đoán.
+Tài liệu này chốt cách mô phỏng, dữ liệu CSV và cách các phần của chương trình trao đổi dữ liệu. Đây là cơ sở chung để xây dựng thuật toán, xử lý CSV và giao diện.
 
 ## 1. Phạm vi mô phỏng
 
@@ -225,13 +225,5 @@ void writeTrace(const std::string& path,
 | PID bị cấp hai lần | Ghi thất bại; trạng thái không đổi. |
 | Thu hồi PID không tồn tại | Ghi thất bại; trạng thái không đổi. |
 | Không ghi được output | Hiện lỗi đường dẫn/quyền ghi; kết quả trên màn hình vẫn được giữ. |
-
-## 12. Phân công kiểm tra tài liệu
-
-- TV1: viết và cập nhật đặc tả.
-- TV2: kiểm tra quy tắc thuật toán, tách/gộp vùng và các điều kiện luôn đúng.
-- TV3: kiểm tra dữ liệu `StepResult` có đủ để làm giao diện và Memory Map.
-- TV5: kiểm tra định dạng CSV và lỗi nhập/xuất.
-- Reviewer chính của QT01-02: TV4, ghi **Đạt/Cần sửa** và ngày kiểm tra vào bảng tiến độ.
 
 Chỉ thay đổi quy tắc trong tài liệu này sau khi nhóm thống nhất, vì thay đổi có thể ảnh hưởng đồng thời đến thuật toán, CSV, GUI và test.

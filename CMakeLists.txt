@@ -16,9 +16,11 @@ set_target_properties(memory_core PROPERTIES AUTOMOC OFF AUTOUIC OFF)
 
 qt_add_executable(OS_MEM_11 WIN32
     source/main.cpp
+    source/main_window.cpp
+    source/memory_map_widget.cpp
 )
 
-target_link_libraries(OS_MEM_11 PRIVATE Qt6::Widgets memory_core)
+target_link_libraries(OS_MEM_11 PRIVATE Qt6::Widgets)
 
 include(CTest)
 if(BUILD_TESTING)
