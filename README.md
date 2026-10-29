@@ -57,3 +57,9 @@ Hiện CTest kiểm tra phần thuật toán. Chưa có kiểm thử tự độn
 - `tests/`: kiểm thử và kết quả mong đợi.
 - `report/`: đặc tả và báo cáo. Xem [spec.md](report/spec.md) để biết quy tắc mô phỏng.
 - `build/`: chương trình và file sinh khi build, không đưa lên Git.
+
+## Build tự động trên GitHub
+
+Mỗi lần cập nhật `main` hoặc mở pull request vào `main`, GitHub tự build và chạy test trên Windows. CI dùng Qt 6.8.3 và MinGW 13.1; hướng dẫn build trên máy vẫn dùng Qt 6.12.0.
+
+Để tải bản chạy sẵn: vào **Actions → Windows CI and package → lần chạy thành công → Artifacts → OS_MEM_11-Windows-x64**. Giải nén toàn bộ rồi mở `OS_MEM_11.exe`. Bản tải về đã có DLL, không cần cài Qt. Đây là bản giao diện hiện tại, chưa nối mô phỏng và CSV.

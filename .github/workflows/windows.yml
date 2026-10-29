@@ -1,0 +1,72 @@
+name: Windows CI and package
+
+on:
+  push:
+    branches: [main, feat/gui-layout]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-package:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt and MinGW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: win64_mingw
+          tools: 'tools_mingw1310'
+          cache: true
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR"
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --no-tests=error
+
+      - name: Package Windows application
+        run: |
+          New-Item -ItemType Directory -Path dist/OS_MEM_11 -Force | Out-Null
+          Copy-Item build/OS_MEM_11.exe dist/OS_MEM_11/
+          windeployqt --release --compiler-runtime --no-translations dist/OS_MEM_11/OS_MEM_11.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item README.md dist/OS_MEM_11/
+          Copy-Item input dist/OS_MEM_11/input -Recurse
+
+      - name: Check packaged application starts without Qt in PATH
+        run: |
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $app = Start-Process -FilePath "$pwd/dist/OS_MEM_11/OS_MEM_11.exe" -WorkingDirectory "$pwd/dist/OS_MEM_11" -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $app.Refresh()
+            if ($app.HasExited) { throw "Packaged application exited with code $($app.ExitCode)" }
+            if (!$app.Responding) { throw 'Packaged application is not responding' }
+          } finally {
+            if (!$app.HasExited) { Stop-Process -Id $app.Id }
+          }
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: OS_MEM_11-Windows-x64
+          path: dist/OS_MEM_11/
+          if-no-files-found: error
+          retention-days: 14
