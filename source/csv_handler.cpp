@@ -1,161 +1,126 @@
 #include "csv_handler.h"
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <iomanip>
-#include <sstream>
 
-using namespace std;
-namespace fs = filesystem;
+namespace fs = std::filesystem;
 
-namespace {
-string trim(const string &text) {
-    size_t first = text.find_first_not_of(" \t\r\n");
-    if (first == string::npos) return "";
-    return text.substr(first, text.find_last_not_of(" \t\r\n") - first + 1);
+static std::string trim(const std::string &s) {
+    size_t p = s.find_first_not_of(" \t\r\n");
+    return p == std::string::npos ? "" : s.substr(p, s.find_last_not_of(" \t\r\n") - p + 1);
 }
 
-CSVHandler::ParseResult makeError(const string &msg, size_t line) {
-    return { {}, false, msg, line };
+static bool toInt(const std::string &s, int &val) {
+    size_t idx = 0;
+    try { val = std::stoi(s, &idx); } catch (...) { return false; }
+    return idx == s.size() && val > 0;
 }
-} // namespace
 
-bool CSVHandler::parseLine(const string &line, RecordState &state) {
-    auto finishCell = [&state] {
-        state.fields.push_back(state.wasQuoted ? move(state.currentCell) : trim(state.currentCell));
-        state.currentCell.clear();
-        state.wasQuoted = false;
-    };
-
-    for (size_t pos = 0; pos < line.size(); ++pos) {
-        char ch = line[pos];
-        if (ch == '"' && state.inQuotes) {
-            if (pos + 1 < line.size() && line[pos + 1] == '"') state.currentCell += line[++pos];
-            else state.inQuotes = false;
-        } else if (ch == '"' && !state.wasQuoted && state.currentCell.find_first_not_of(" \t") == string::npos) {
-            state.inQuotes = state.wasQuoted = true;
-            state.currentCell.clear();
-        } else if (ch == ',' && !state.inQuotes) {
-            finishCell();
-        } else {
-            state.currentCell += ch;
-        }
+bool CSVHandler::parseLine(const std::string &line, State &st) {
+    auto add = [&] { st.fields.push_back(st.wasQuoted ? st.cell : trim(st.cell)); st.cell.clear(); st.wasQuoted = false; };
+    for (size_t i = 0; i < line.size(); ++i) {
+        char c = line[i];
+        if (c == '"') {
+            if (st.inQuotes) {
+                if (i + 1 < line.size() && line[i + 1] == '"') { st.cell += '"'; ++i; }
+                else { st.inQuotes = false; if (i + 1 < line.size() && line[i + 1] != ',' && !isspace((unsigned char)line[i + 1])) return false; }
+            } else {
+                if (!trim(st.cell).empty()) return false;
+                st.inQuotes = st.wasQuoted = true; st.cell.clear();
+            }
+        } else if (c == ',' && !st.inQuotes) { add(); }
+        else { st.cell += c; }
     }
-
-    if (state.inQuotes) {
-        state.currentCell += '\n';
-        return false;
-    }
-    finishCell();
+    if (st.inQuotes) { st.cell += '\n'; return false; }
+    add();
     return true;
 }
 
-bool CSVHandler::validateRow(const Row &row, size_t lineNumber, string &errorMessage) {
-    auto fail = [&](const string &reason) {
-        errorMessage = "Dòng " + to_string(lineNumber) + ": " + reason;
-        return false;
-    };
-
-    if (row.size() < 4) return fail("Thiếu số lượng cột bắt buộc.");
-    if (row[1] == "FREE") return true;
-    if (row[1] != "ALLOC") return fail("Hành động (Action) không hợp lệ (phải là ALLOC hoặc FREE).");
-
-    size_t charsUsed = 0;
-    int sizeKb = 0;
-    try { sizeKb = stoi(row[3], &charsUsed); } catch (...) { charsUsed = 0; }
-    if (charsUsed == 0 || charsUsed != row[3].size()) return fail("Định dạng size_kb không phải là số hợp lệ.");
-    if (sizeKb <= 0) return fail("Giá trị size_kb phải lớn hơn 0.");
-    return true;
-}
-
-CSVHandler::ParseResult CSVHandler::readCSV(const string &filename, const string &inputDir) {
-    fs::path filePath = fs::path(inputDir) / filename;
-    ifstream file(filePath);
-    if (!file) return makeError("Lỗi: Không thể mở file đầu vào tại đường dẫn: " + filePath.string(), 0);
-
-    ParseResult result;
-    RecordState state;
-    string line;
-    size_t lineNumber = 0, recordStartLine = 0, recordCount = 0;
-
-    while (getline(file, line)) {
-        ++lineNumber;
+CsvParseResult<Config> CSVHandler::readConfig(const std::string &filename, const std::string &inputDir) {
+    fs::path p = fs::path(inputDir) / filename;
+    std::ifstream f(p);
+    if (!f) return {std::nullopt, CsvError{p.string(), 0, 0, "Không mở được file"}};
+    std::string line; int lineNum = 0; Config cfg; bool head = false;
+    while (std::getline(f, line)) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (!state.inQuotes) {
-            if (line.empty()) continue;
-            recordStartLine = lineNumber;
+        if (line.empty()) continue; ++lineNum;
+        State st; if (!parseLine(line, st)) return {std::nullopt, CsvError{p.string(), lineNum, 0, "Lỗi quote"}};
+        if (!head) {
+            if (st.fields.size() != 3 || st.fields[0] != "total_memory_kb" || st.fields[1] != "allocation_unit_kb" || st.fields[2] != "strategy")
+                return {std::nullopt, CsvError{p.string(), lineNum, 0, "Sai header config"}};
+            head = true; continue;
         }
-        if (!parseLine(line, state)) continue;
-
-        Row row = move(state.fields);
-        state = RecordState{};
-
-        string err;
-        if (++recordCount > 1 && !validateRow(row, recordStartLine, err))
-            return makeError(err, recordStartLine);
-        result.data.push_back(move(row));
+        int m = 0, u = 0;
+        if (!toInt(st.fields[0], m) || !toInt(st.fields[1], u) || st.fields[2].empty())
+            return {std::nullopt, CsvError{p.string(), lineNum, 0, "Sai dữ liệu config"}};
+        cfg.totalMemoryKb = m; cfg.allocationUnitKb = u;
+        cfg.strategy = (st.fields[2] == "FIRST_FIT") ? Strategy::FirstFit : (st.fields[2] == "BEST_FIT") ? Strategy::BestFit : (st.fields[2] == "WORST_FIT") ? Strategy::WorstFit : Strategy::All;
+        return {cfg, std::nullopt};
     }
-
-    if (state.inQuotes)
-        return makeError("Lỗi: Dấu ngoặc kép bắt đầu ở dòng " + to_string(recordStartLine) + " không được đóng.", recordStartLine);
-
-    result.success = true;
-    return result;
+    return {std::nullopt, CsvError{p.string(), 0, 0, "File trống"}};
 }
 
-void CSVHandler::writeField(ostream &out, const string &field) {
-    if (field.find_first_of(",\"\r\n") == string::npos) {
-        out << field;
-        return;
+CsvParseResult<std::vector<Event>> CSVHandler::readEvents(const std::string &filename, const std::string &inputDir) {
+    fs::path p = fs::path(inputDir) / filename;
+    std::ifstream f(p);
+    if (!f) return {std::nullopt, CsvError{p.string(), 0, 0, "Không mở được file"}};
+    std::string line; int lineNum = 0, lastStep = 0; std::vector<Event> evs; bool head = false;
+    while (std::getline(f, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue; ++lineNum;
+        State st; if (!parseLine(line, st)) return {std::nullopt, CsvError{p.string(), lineNum, 0, "Lỗi quote"}};
+        if (!head) {
+            if (st.fields.size() < 4 || st.fields[0] != "step" || st.fields[1] != "operation" || st.fields[2] != "pid" || st.fields[3] != "size_kb")
+                return {std::nullopt, CsvError{p.string(), lineNum, 0, "Sai header event"}};
+            head = true; continue;
+        }
+        int step = 0, sz = 0;
+        if (!toInt(st.fields[0], step) || step <= lastStep) return {std::nullopt, CsvError{p.string(), lineNum, 1, "Step không hợp lệ"}};
+        lastStep = step;
+        bool isAlloc = st.fields[1] == "ALLOC";
+        bool isFree = st.fields[1] == "FREE";
+        if (!isAlloc && !isFree) return {std::nullopt, CsvError{p.string(), lineNum, 2, "Operation sai"}};
+        std::string pid = st.fields[2];
+        if (pid.empty()) return {std::nullopt, CsvError{p.string(), lineNum, 3, "PID rỗng"}};
+        if (isFree) {
+            if (!st.fields[3].empty() && st.fields[3] != "0") return {std::nullopt, CsvError{p.string(), lineNum, 4, "FREE phải trống size"}};
+        } else {
+            if (!toInt(st.fields[3], sz)) return {std::nullopt, CsvError{p.string(), lineNum, 4, "ALLOC size sai"}};
+        }
+        evs.push_back(Event{step, isAlloc ? OperationType::Allocate : OperationType::Free, pid, sz});
     }
-    out.put('"');
-    for (char ch : field) {
-        if (ch == '"') out.put('"');
-        out.put(ch);
-    }
-    out.put('"');
+    return {evs, std::nullopt};
 }
 
-void CSVHandler::writeRow(ostream &out, const Row &row) {
-    for (size_t col = 0; col < row.size(); ++col) {
-        if (col) out.put(',');
-        writeField(out, row[col]);
+bool CSVHandler::exportTraceCSV(const std::string &filename, const std::vector<StepResult> &results, const std::string &outputDir) {
+    fs::create_directories(outputDir);
+    std::ofstream f(fs::path(outputDir) / filename);
+    if (!f) return false;
+    f << "strategy,step,operation,pid,requested_size_kb,allocated_size_kb,success,message,total_free_kb,largest_free_block_kb,hole_count,internal_fragmentation_kb,external_fragmentation_kb,external_fragmentation_ratio\n";
+    for (auto &r : results) {
+        f << "FIRST_FIT," << r.step << "," << (r.operation == OperationType::Allocate ? "ALLOC" : "FREE") << ","
+          << r.processId << "," << r.requestedSizeKb << "," << r.allocatedSizeKb << ","
+          << (r.success ? "true" : "false") << ",\"" << r.message << "\","
+          << r.metrics.totalFreeKb << "," << r.metrics.largestFreeBlockKb << "," << r.metrics.holeCount << ","
+          << r.metrics.internalFragmentationKb << "," << r.metrics.externalFragmentationKb << ","
+          << std::fixed << std::setprecision(4) << r.metrics.externalFragmentationRatio << "\n";
     }
-    out.put('\n');
+    return f.good();
 }
 
-bool CSVHandler::writeCSV(const string &filename, const Table &data, const Row &headers, const string &outputDir) {
-    error_code dirError;
-    fs::create_directories(outputDir, dirError);
-    if (dirError) { cerr << "Lỗi tạo thư mục: " << dirError.message() << '\n'; return false; }
-
-    ofstream file(fs::path(outputDir) / filename);
-    if (!file) return false;
-
-    if (!headers.empty()) writeRow(file, headers);
-    for (const auto &row : data) writeRow(file, row);
-    return file.good();
-}
-
-bool CSVHandler::exportTraceCSV(const string &filename, const vector<TraceEntry> &traces, const string &outputDir) {
-    Row headers = {"Step", "Action", "PID", "Size_KB", "Result", "Note"};
-    Table tableData;
-    tableData.reserve(traces.size());
-    for (const auto &t : traces) {
-        tableData.push_back({to_string(t.step), t.action, t.pid, to_string(t.sizeKb), t.success ? "SUCCESS" : "FAILED", t.note});
+bool CSVHandler::exportBlocksCSV(const std::string &filename, const std::vector<StepResult> &results, const std::string &outputDir) {
+    fs::create_directories(outputDir);
+    std::ofstream f(fs::path(outputDir) / filename);
+    if (!f) return false;
+    f << "strategy,step,block_index,start_address_kb,size_kb,is_free,pid,requested_size_kb,internal_fragmentation_kb\n";
+    for (auto &r : results) {
+        int idx = 0;
+        for (auto &b : r.blocks) {
+            f << "FIRST_FIT," << r.step << "," << idx++ << "," << b.startAddressKb << ","
+              << b.allocatedSizeKb << "," << (b.isFree ? "true" : "false") << ","
+              << (b.processId.empty() ? "-" : b.processId) << "," << b.requestedSizeKb << ","
+              << (b.isFree ? 0 : (b.allocatedSizeKb - b.requestedSizeKb)) << "\n";
+        }
     }
-    return writeCSV(filename, tableData, headers, outputDir);
-}
-
-bool CSVHandler::exportBlocksCSV(const string &filename, const vector<BlockEntry> &blocks, const string &outputDir) {
-    Row headers = {"Block_ID", "Start_Addr", "End_Addr", "Size_KB", "Status", "PID"};
-    Table tableData;
-    tableData.reserve(blocks.size());
-    for (const auto &b : blocks) {
-        stringstream ssStart, ssEnd;
-        ssStart << "0x" << setfill('0') << setw(4) << hex << uppercase << b.startAddr;
-        ssEnd << "0x" << setfill('0') << setw(4) << hex << uppercase << b.endAddr;
-        tableData.push_back({to_string(b.blockId), ssStart.str(), ssEnd.str(), to_string(b.sizeKb), b.status, b.pid.empty() ? "-" : b.pid});
-    }
-    return writeCSV(filename, tableData, headers, outputDir);
+    return f.good();
 }
