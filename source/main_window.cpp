@@ -1,6 +1,9 @@
 ﻿#include "main_window.h"
 #include "memory_map_widget.h"
 #include <QComboBox>
+#include <QFileDialog>
+#include <QGridLayout>
+#include <QMessageBox>
 #include <QGroupBox>
 #include <QHeaderView>
 #include <QLabel>
@@ -77,14 +80,37 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     panelsWidget_ = new QWidget(scroll); panelsLayout_ = new QHBoxLayout(panelsWidget_);
     scroll->setWidget(panelsWidget_);
     layout->addWidget(scroll,1);
-    for (auto* widget : std::initializer_list<QWidget*>{load_, configBrowse_, eventsBrowse_, configPath_, eventsPath_, next_, run_, pause_, reset_, export_, speed_, history_}) {
-        widget->setEnabled(false);
-        widget->setToolTip(tr("Chưa tích hợp chức năng; hiện chỉ dựng giao diện."));
-    }
-    state_->setText(tr("Chế độ giao diện · chưa có dữ liệu"));
+    // Chon duong dan chi la viec cua GUI, khong doc noi dung CSV.
+    connect(configBrowse_, &QPushButton::clicked, this, [this] {
+        const auto path = QFileDialog::getOpenFileName(this, tr("Chọn config.csv"), configPath_->text(), "CSV (*.csv)");
+        if (!path.isEmpty()) configPath_->setText(path);
+    });
+    connect(eventsBrowse_, &QPushButton::clicked, this, [this] {
+        const auto path = QFileDialog::getOpenFileName(this, tr("Chọn events.csv"), eventsPath_->text(), "CSV (*.csv)");
+        if (!path.isEmpty()) eventsPath_->setText(path);
+    });
+    connect(configPath_, &QLineEdit::textChanged, this, [this] { updateControls(); });
+    connect(eventsPath_, &QLineEdit::textChanged, this, [this] { updateControls(); });
+    connect(load_, &QPushButton::clicked, this, [this] {
+        emit loadRequested(configPath_->text().trimmed(), eventsPath_->text().trimmed());
+    });
+    connect(next_, &QPushButton::clicked, this, &MainWindow::nextRequested);
+    connect(run_, &QPushButton::clicked, this, [this] { emit runRequested(speed_->value()); });
+    connect(pause_, &QPushButton::clicked, this, &MainWindow::pauseRequested);
+    connect(reset_, &QPushButton::clicked, this, &MainWindow::resetRequested);
+    connect(export_, &QPushButton::clicked, this, [this] {
+        const auto directory = QFileDialog::getExistingDirectory(this, tr("Chọn thư mục xuất CSV"));
+        if (!directory.isEmpty()) emit exportRequested(directory);
+    });
+    connect(history_, &QSpinBox::valueChanged, this, &MainWindow::showSnapshot);
     strategy_->setCurrentIndex(3);
-    connect(strategy_, &QComboBox::currentIndexChanged, this, [this] { rebuildPanels(); });
+    connect(strategy_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        rebuildPanels();
+        renderRuns();
+        emit strategySelected(static_cast<Strategy>(index));
+    });
     rebuildPanels();
+    setBackendReady(false);
 }
 void MainWindow::rebuildPanels() {
     while (auto* item = panelsLayout_->takeAt(0)) { delete item->widget(); delete item; }
@@ -122,12 +148,136 @@ void MainWindow::rebuildPanels() {
         details->addWidget(traceSection);
         details->setSizes({180,220});
         layout->addWidget(map); layout->addWidget(metrics); layout->addWidget(details,1);
-        panelsLayout_->addWidget(box,1); panels_.push_back({map,blocks,metrics,trace,message});
+        panelsLayout_->addWidget(box,1); panels_.push_back({static_cast<Strategy>(i),map,blocks,metrics,trace,message});
+        connect(trace, &QTableWidget::cellClicked, this, [this](int row, int) { history_->setValue(row + 1); });
         connect(trace->verticalScrollBar(), &QScrollBar::valueChanged, this, [this,trace](int value) {
             for (const auto& panel : panels_) if (panel.trace != trace) {
                 QSignalBlocker blocker(panel.trace->verticalScrollBar());
                 panel.trace->verticalScrollBar()->setValue(value);
             }
         });
+    }
+}
+
+// Cac ham duoi day la diem noi GUI; khong goi Core hay parser.
+void MainWindow::setBackendReady(bool ready) {
+    backendReady_ = ready;
+    info_->setText(ready ? tr("Đã kết nối phần xử lý.")
+                        : tr("Chọn được đường dẫn; chưa kết nối Controller/CSV nên chưa nạp hoặc chạy."));
+    updateControls();
+}
+
+void MainWindow::setUiState(UiState state) {
+    uiState_ = state;
+    updateControls();
+}
+
+void MainWindow::updateControls() {
+    const bool running = uiState_ == UiState::Running;
+    const bool canStep = backendReady_ && (uiState_ == UiState::Ready || uiState_ == UiState::Paused);
+    configPath_->setEnabled(!running);
+    eventsPath_->setEnabled(!running);
+    configBrowse_->setEnabled(!running);
+    eventsBrowse_->setEnabled(!running);
+    load_->setEnabled(backendReady_ && !running && !configPath_->text().trimmed().isEmpty()
+                      && !eventsPath_->text().trimmed().isEmpty());
+    load_->setToolTip(backendReady_ ? tr("Chọn đủ hai đường dẫn trước khi nạp.") : tr("Chờ kết nối CSV và Controller."));
+    next_->setEnabled(canStep);
+    run_->setEnabled(canStep);
+    pause_->setEnabled(backendReady_ && running);
+    reset_->setEnabled(backendReady_ && uiState_ != UiState::Empty);
+    export_->setEnabled(backendReady_ && (uiState_ == UiState::Paused || uiState_ == UiState::Finished));
+    strategy_->setEnabled(!running);
+    speed_->setEnabled(backendReady_ && !running);
+    history_->setEnabled(!running && history_->maximum() > 0);
+    const QStringList states = {tr("Chưa nạp dữ liệu"), tr("Sẵn sàng"), tr("Đang chạy"), tr("Tạm dừng"), tr("Hoàn tất")};
+    state_->setText(states[static_cast<int>(uiState_)]);
+}
+
+void MainWindow::showCsvError(const CsvError& error) {
+    // Chi hien loi do CSV tra ve, khong tu validate lai.
+    QMessageBox::warning(this, tr("Lỗi CSV"), tr("File: %1\nDòng: %2 · Cột: %3\n%4")
+        .arg(QString::fromStdString(error.filePath)).arg(error.line).arg(error.column)
+        .arg(QString::fromStdString(error.message)));
+}
+
+void MainWindow::setRuns(const std::vector<RunResult>& runs) {
+    runs_ = runs;
+    renderRuns();
+}
+
+void MainWindow::renderRuns() {
+    int commonSteps = -1;
+    for (auto& panel : panels_) {
+        QSignalBlocker blocker(panel.trace);
+        panel.trace->setRowCount(0);
+        const RunResult* run = nullptr;
+        for (const auto& candidate : runs_)
+            if (candidate.strategy == panel.strategy) { run = &candidate; break; }
+        const int count = run ? static_cast<int>(run->results.size()) : 0;
+        if (commonSteps < 0 || count < commonSteps) commonSteps = count;
+        if (!run) continue;
+        for (const auto& result : run->results) {
+            const int row = panel.trace->rowCount();
+            panel.trace->insertRow(row);
+            const QStringList cells = {QString::number(result.step),
+                result.operation == OperationType::Allocate ? "ALLOC" : "FREE",
+                QString::fromStdString(result.processId), QString::number(result.requestedSizeKb),
+                QString::number(result.allocatedSizeKb),
+                result.startAddressKb ? QString::number(*result.startAddressKb) : QStringLiteral("—"),
+                result.success ? tr("Thành công") : tr("Thất bại")};
+            for (int col = 0; col < cells.size(); ++col) {
+                auto* item = new QTableWidgetItem(cells[col]);
+                item->setToolTip(QString::fromStdString(result.message));
+                panel.trace->setItem(row, col, item);
+            }
+        }
+    }
+    // Compare All chi xem cac snapshot co cung chi so su kien.
+    QSignalBlocker blocker(history_);
+    history_->setRange(0, qMax(0, commonSteps));
+    history_->setValue(history_->maximum());
+    showSnapshot(history_->value());
+    updateControls();
+}
+
+void MainWindow::showSnapshot(int index) {
+    for (auto& panel : panels_) {
+        const RunResult* run = nullptr;
+        for (const auto& candidate : runs_)
+            if (candidate.strategy == panel.strategy) { run = &candidate; break; }
+        panel.blocks->setRowCount(0);
+        if (!run) {
+            panel.map->setBlocks(0, {});
+            panel.metrics->setText(tr("Chưa có dữ liệu cho chiến lược này."));
+            panel.message->setText(tr("Message: chưa có dữ liệu"));
+            continue;
+        }
+        const StepResult* result = index > 0 && index <= static_cast<int>(run->results.size())
+            ? &run->results[index - 1] : nullptr;
+        const auto& blocks = result ? result->blocks : run->initialState.blocks;
+        const auto& metrics = result ? result->metrics : run->initialState.metrics;
+        panel.map->setBlocks(run->config.totalMemoryKb, blocks);
+        panel.metrics->setText(tr("Total: %1 KB · Unit: %2 KB\nFree: %3 KB · Largest hole: %4 KB · Holes: %5\nInternal: %6 KB · External: %7 KB · Ratio: %8\nToàn lượt chạy: ALLOC thành công %9 / thất bại %10")
+            .arg(run->config.totalMemoryKb).arg(run->config.allocationUnitKb)
+            .arg(metrics.totalFreeKb).arg(metrics.largestFreeBlockKb).arg(metrics.holeCount)
+            .arg(metrics.internalFragmentationKb).arg(metrics.externalFragmentationKb)
+            .arg(metrics.externalFragmentationRatio, 0, 'f', 3)
+            .arg(run->summary.allocSuccesses).arg(run->summary.allocFailures));
+        for (const auto& block : blocks) {
+            const int row = panel.blocks->rowCount();
+            panel.blocks->insertRow(row);
+            const QStringList cells = {QString::number(block.startAddressKb),
+                QString::number(block.startAddressKb + block.allocatedSizeKb),
+                QString::number(block.allocatedSizeKb), block.isFree ? "FREE" : QString::fromStdString(block.processId),
+                QString::number(block.requestedSizeKb),
+                QString::number(block.isFree ? 0 : block.allocatedSizeKb - block.requestedSizeKb)};
+            for (int col = 0; col < cells.size(); ++col)
+                panel.blocks->setItem(row, col, new QTableWidgetItem(cells[col]));
+        }
+        panel.trace->clearSelection();
+        if (result) panel.trace->selectRow(index - 1);
+        panel.message->setText(result ? tr("Bước %1 · %2").arg(result->step).arg(QString::fromStdString(result->message))
+                                     : tr("Trạng thái ban đầu (bước 0)"));
     }
 }
