@@ -28,6 +28,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_memory_manager PRIVATE memory_core)
     set_target_properties(test_memory_manager PROPERTIES AUTOMOC OFF AUTOUIC OFF)
     add_test(NAME memory_manager COMMAND test_memory_manager)
+
+    add_executable(test_csv_handler tests/test_csv_handler.cpp)
+    target_link_libraries(test_csv_handler PRIVATE memory_core)
+    set_target_properties(test_csv_handler PROPERTIES AUTOMOC OFF AUTOUIC OFF)
+    add_test(NAME csv_handler COMMAND test_csv_handler)
 endif()
 
 if(MSVC)
