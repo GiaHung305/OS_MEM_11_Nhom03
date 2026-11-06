@@ -10,7 +10,10 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 qt_standard_project_setup()
 
-add_library(memory_core STATIC source/memory_manager.cpp)
+add_library(memory_core STATIC 
+    source/memory_manager.cpp
+    source/csv_handler.cpp
+)
 target_include_directories(memory_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set_target_properties(memory_core PROPERTIES AUTOMOC OFF AUTOUIC OFF)
 
@@ -20,7 +23,7 @@ qt_add_executable(OS_MEM_11 WIN32
     source/memory_map_widget.cpp
 )
 
-target_link_libraries(OS_MEM_11 PRIVATE Qt6::Widgets)
+target_link_libraries(OS_MEM_11 PRIVATE Qt6::Widgets memory_core)
 
 include(CTest)
 if(BUILD_TESTING)
