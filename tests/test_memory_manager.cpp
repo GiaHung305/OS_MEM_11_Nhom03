@@ -1,10 +1,19 @@
 #include "memory_manager.h"
 
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <limits>
+#include <locale>
+#include <random>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 // Checks remain active in Release builds (unlike assert).
 #define CHECK(condition) do { if (!(condition)) throw std::runtime_error( \
@@ -155,7 +164,283 @@ void validation() {
     CHECK(legacy.allocateBestFit(2, 5) && legacy.allocateWorstFit(3, 5));
     CHECK(legacy.validateState());
 }
-int main() {
+
+namespace {
+
+// Shared workloads for stress testing and timing.
+constexpr int totalKb = 1536;
+constexpr int unitKb = 4;
+constexpr unsigned seed = 11003;
+constexpr std::array eventCounts{100, 1000, 10000};
+constexpr std::array strategies{Strategy::FirstFit, Strategy::BestFit, Strategy::WorstFit};
+constexpr std::array strategyNames{"FIRST_FIT", "BEST_FIT", "WORST_FIT"};
+
+enum class Workload { Normal, Churn, Fragmentation };
+constexpr std::array workloads{Workload::Normal, Workload::Churn, Workload::Fragmentation};
+constexpr std::array workloadNames{"normal", "churn", "fragmentation"};
+
+std::vector<Event> generate(Workload workload, int count) {
+    std::mt19937 rng(seed);
+    std::vector<Event> events;
+    events.reserve(count);
+    int churnPid = 0;
+    for (int i = 0; i < count; ++i) {
+        const int position = i % 100;
+        int pid = 0;
+        int requestedKb = 0;
+        switch (workload) {
+        case Workload::Normal:
+            pid = position % 50;
+            if (position < 50) requestedKb = 8 + rng() % 29;
+            break;
+        case Workload::Churn:
+            if (i < 24) {
+                pid = i;
+                requestedKb = 12 + rng() % 54;
+            } else {
+                if (i % 2 == 0) churnPid = rng() % 24;
+                pid = churnPid;
+                if (i % 2 != 0) requestedKb = 12 + rng() % 54;
+            }
+            break;
+        case Workload::Fragmentation:
+            // Fill memory with 24 pairs of 24 KB and 40 KB blocks.
+            // Free the 24 KB blocks, try four 32 KB requests, then free the rest.
+            if (position < 48) {
+                pid = position;
+                requestedKb = position % 2 == 0 ? 24 : 40;
+            } else if (position < 72) {
+                pid = 2 * (position - 48);
+            } else if (position < 76) {
+                pid = position;
+                requestedKb = 32;
+            } else {
+                pid = 2 * (position - 76) + 1;
+            }
+            break;
+        }
+        const auto operation = requestedKb > 0 ? OperationType::Allocate : OperationType::Free;
+        events.push_back({i + 1, operation, "P" + std::to_string(pid), requestedKb});
+    }
+    return events;
+}
+
+// Stress checks run after each event.
+struct Allocation {
+    int address;
+    int requestedKb;
+    int allocatedKb;
+};
+
+using Active = std::unordered_map<std::string, Allocation>;
+
+void check(bool condition, const char* rule) {
+    if (!condition) throw std::runtime_error(rule);
+}
+
+bool sameBlock(const MemoryBlock& a, const MemoryBlock& b) {
+    return a.startAddressKb == b.startAddressKb && a.allocatedSizeKb == b.allocatedSizeKb &&
+           a.requestedSizeKb == b.requestedSizeKb && a.processId == b.processId &&
+           a.isFree == b.isFree;
+}
+
+void checkSnapshot(const StepResult& result, const Active& active) {
+    int end = 0;
+    int freeKb = 0;
+    int largestKb = 0;
+    int holes = 0;
+    int internalKb = 0;
+    std::size_t used = 0;
+    bool previousFree = false;
+    for (const auto& block : result.blocks) {
+        check(block.startAddressKb == end && block.allocatedSizeKb > 0 &&
+              block.allocatedSizeKb <= totalKb - end, "blocks must cover memory without gaps or overlaps");
+        end += block.allocatedSizeKb;
+        if (block.isFree) {
+            check(!previousFree && block.processId.empty() && block.requestedSizeKb == 0,
+                  "free blocks must be merged and carry no process data");
+            freeKb += block.allocatedSizeKb;
+            largestKb = std::max(largestKb, block.allocatedSizeKb);
+            ++holes;
+        } else {
+            const auto allocation = active.find(block.processId);
+            check(allocation != active.end(), "snapshot contains an unexpected PID");
+            const auto& expected = allocation->second;
+            check(block.startAddressKb == expected.address &&
+                  block.requestedSizeKb == expected.requestedKb &&
+                  block.allocatedSizeKb == expected.allocatedKb, "active allocation changed");
+            internalKb += expected.allocatedKb - expected.requestedKb;
+            ++used;
+        }
+        previousFree = block.isFree;
+    }
+    check(end == totalKb && used == active.size(), "snapshot must include all active allocations");
+    const int externalKb = freeKb - largestKb;
+    const double ratio = freeKb == 0 ? 0.0 : static_cast<double>(externalKb) / freeKb;
+    const auto& metrics = result.metrics;
+    check(metrics.totalFreeKb == freeKb && metrics.largestFreeBlockKb == largestKb &&
+          metrics.holeCount == holes && metrics.internalFragmentationKb == internalKb &&
+          metrics.externalFragmentationKb == externalKb &&
+          std::abs(metrics.externalFragmentationRatio - ratio) < 1e-12, "incorrect fragmentation metrics");
+}
+
+void runStress(const std::vector<Event>& events, Strategy strategy, Workload workload) {
+    MemoryManager manager(totalKb, unitKb, strategy);
+    Active active;
+    auto previousBlocks = manager.getBlocks();
+    int largestKb = totalKb;
+    int freeKb = totalKb;
+    int fragmentationFailures = 0;
+    for (const auto& event : events) {
+        try {
+            auto result = manager.apply(event);
+            check(result.step == event.step && result.strategy == strategy &&
+                  result.operation == event.operation && result.processId == event.processId &&
+                  result.requestedSizeKb == event.requestedSizeKb && !result.message.empty(),
+                  "result does not describe the input event");
+            const bool allocate = event.operation == OperationType::Allocate;
+            const bool exists = active.count(event.processId) != 0;
+            const int rounded = unitKb * static_cast<int>(
+                std::ceil(static_cast<double>(event.requestedSizeKb) / unitKb));
+            const bool shouldSucceed = allocate ? !exists && rounded <= largestKb : exists;
+            check(result.success == shouldSucceed, "unexpected success or failure");
+
+            if (allocate && shouldSucceed) {
+                check(result.startAddressKb.has_value() && result.allocatedSizeKb == rounded,
+                      "successful allocation must report address and rounded size");
+                const int address = *result.startAddressKb;
+                check(std::any_of(previousBlocks.begin(), previousBlocks.end(), [&](const auto& block) {
+                    return block.isFree && block.startAddressKb == address && block.allocatedSizeKb >= rounded;
+                }), "allocation must start at a fitting free block");
+                active.emplace(event.processId, Allocation{address, event.requestedSizeKb, rounded});
+            } else {
+                check(!result.startAddressKb && result.allocatedSizeKb == 0,
+                      "FREE and rejected events must not report an allocation");
+                if (shouldSucceed) active.erase(event.processId);
+            }
+
+            if (!shouldSucceed) {
+                check(std::equal(previousBlocks.begin(), previousBlocks.end(),
+                                 result.blocks.begin(), result.blocks.end(), sameBlock),
+                      "rejected event changed memory");
+                if (allocate && !exists && rounded <= freeKb) {
+                    check(result.message == "EXTERNAL_FRAGMENTATION", "incorrect fragmentation failure");
+                    ++fragmentationFailures;
+                }
+            }
+            checkSnapshot(result, active);
+            check(manager.validateState(), "Core state validation failed");
+            check(std::equal(result.blocks.begin(), result.blocks.end(), manager.getMemoryBlocks().begin(),
+                             manager.getMemoryBlocks().end(), sameBlock), "snapshot differs from Core state");
+            largestKb = result.metrics.largestFreeBlockKb;
+            freeKb = result.metrics.totalFreeKb;
+            previousBlocks = std::move(result.blocks);
+        } catch (const std::exception& error) {
+            throw std::runtime_error("step " + std::to_string(event.step) + ": " + error.what());
+        }
+    }
+
+    if (workload == Workload::Fragmentation) {
+        check(fragmentationFailures == static_cast<int>(events.size()) / 100 * 4,
+              "fragmentation workload must reject four allocations per cycle");
+        check(active.empty() && previousBlocks.size() == 1, "fragmentation workload must fully coalesce");
+    }
+    manager.reset();
+    const auto& resetBlocks = manager.getMemoryBlocks();
+    check(resetBlocks.size() == 1 && resetBlocks.front().isFree &&
+          resetBlocks.front().allocatedSizeKb == totalKb && manager.validateState(), "reset failed");
+}
+
+int runStressCases() {
+    for (std::size_t workload = 0; workload < workloads.size(); ++workload) {
+        for (const int count : eventCounts) {
+            const auto events = generate(workloads[workload], count);
+            for (std::size_t strategy = 0; strategy < strategies.size(); ++strategy) {
+                try {
+                    runStress(events, strategies[strategy], workloads[workload]);
+                } catch (const std::exception& error) {
+                    std::cerr << workloadNames[workload] << ", " << count << " events, "
+                              << strategyNames[strategy] << ": " << error.what() << '\n';
+                    return 1;
+                }
+            }
+        }
+    }
+    std::cout << "Memory stress passed for all 27 workload/size/strategy combinations.\n";
+    return 0;
+}
+
+// Benchmark timing excludes workload generation and stress checks.
+constexpr std::size_t repetitions = 5;
+
+struct Sample {
+    double elapsedUs;
+    int allocSuccesses;
+    int allocFailures;
+};
+
+Sample measure(const std::vector<Event>& events, Strategy strategy) {
+    MemoryManager manager(totalKb, unitKb, strategy);
+    int successes = 0;
+    int failures = 0;
+    const auto start = std::chrono::steady_clock::now();
+    for (const auto& event : events) {
+        const auto result = manager.apply(event);
+        if (event.operation == OperationType::Allocate) {
+            successes += result.success;
+            failures += !result.success;
+        }
+    }
+    const auto stop = std::chrono::steady_clock::now();
+    return {std::chrono::duration<double, std::micro>(stop - start).count(), successes, failures};
+}
+
+int runBenchmark() {
+    std::cout.imbue(std::locale::classic());
+    std::cout << "workload,event_count,total_kb,allocation_unit_kb,seed,strategy,repetition,"
+                 "elapsed_us,min_us,median_us,max_us,alloc_successes,alloc_failures\n"
+              << std::fixed << std::setprecision(3);
+    for (std::size_t workload = 0; workload < workloads.size(); ++workload) {
+        for (const int count : eventCounts) {
+            const auto events = generate(workloads[workload], count);
+            std::array<std::array<Sample, repetitions>, strategies.size()> samples{};
+            for (const auto strategy : strategies) measure(events, strategy); // Warmup.
+            for (std::size_t rep = 0; rep < repetitions; ++rep) {
+                // Rotate the order so one strategy does not always run first.
+                for (std::size_t i = 0; i < strategies.size(); ++i) {
+                    const std::size_t strategy = (rep + i) % strategies.size();
+                    samples[strategy][rep] = measure(events, strategies[strategy]);
+                }
+            }
+            for (std::size_t strategy = 0; strategy < strategies.size(); ++strategy) {
+                std::array<double, repetitions> times{};
+                for (std::size_t i = 0; i < repetitions; ++i) times[i] = samples[strategy][i].elapsedUs;
+                std::sort(times.begin(), times.end());
+                for (std::size_t rep = 0; rep < repetitions; ++rep) {
+                    const auto& sample = samples[strategy][rep];
+                    std::cout << workloadNames[workload] << ',' << count << ',' << totalKb << ',' << unitKb << ','
+                              << seed << ',' << strategyNames[strategy] << ',' << rep + 1 << ','
+                              << sample.elapsedUs << ',' << times.front() << ',' << times[repetitions / 2] << ','
+                              << times.back() << ',' << sample.allocSuccesses << ',' << sample.allocFailures << '\n';
+                }
+            }
+        }
+    }
+    return std::cout ? 0 : 1;
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    if (argc == 2) {
+        const std::string mode = argv[1];
+        if (mode == "--stress") return runStressCases();
+        if (mode == "--benchmark") return runBenchmark();
+    }
+    if (argc != 1) {
+        std::cerr << "Usage: test_memory_manager [--stress | --benchmark]\n";
+        return 2;
+    }
     try {
         for (const auto strategy : {Strategy::FirstFit, Strategy::BestFit, Strategy::WorstFit}) {
             rounding(strategy);

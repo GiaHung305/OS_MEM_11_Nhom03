@@ -31,7 +31,7 @@ static void removeTempFile(const std::string &path) {
 }
 
 static std::string readTextFile(const std::string &path) {
-  std::ifstream in(path, std::ios::binary);
+  std::ifstream in(path);
   if (!in.is_open())
     return "";
   return std::string((std::istreambuf_iterator<char>(in)),
@@ -269,8 +269,14 @@ void testExportAndEscaping() {
 }
 
 void testExportErrorHandling() {
+  const std::string parentFile = "temp_export_parent_file";
+  createTempFile(parentFile, "This is a file, not a directory.");
+  CHECK(fs::is_regular_file(parentFile));
+
   std::vector<StepResult> results;
-  bool ok = CSVHandler::exportTraceCSV("output.csv", results, "invalid_dir_99999/non_existing_sub");
+  const bool ok = CSVHandler::exportTraceCSV(
+      "output.csv", results, (fs::path(parentFile) / "child").string());
+  removeTempFile(parentFile);
   CHECK(!ok);
 }
 
