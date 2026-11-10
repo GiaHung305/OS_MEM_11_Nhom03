@@ -17,14 +17,6 @@ Chương trình hướng đến việc đọc dữ liệu từ CSV, mô phỏng 
 
 Đây là mô phỏng, không tác động đến RAM thật của máy tính.
 
-## Tiến độ hiện tại
-
-Phần thuật toán đã có cấp phát, thu hồi, tách và gộp vùng nhớ, làm tròn theo đơn vị cấp phát, tính các chỉ số phân mảnh và bộ kiểm thử tự động.
-
-Giao diện đã có bố cục chọn file, chọn chiến lược, sơ đồ bộ nhớ, bảng vùng nhớ và lịch sử thao tác. Compare All hiện cho phép xem bố cục ba thuật toán cạnh nhau.
-
-Phần đọc/ghi CSV cơ bản đã có nhưng chưa hoàn thiện việc kiểm tra dữ liệu theo mô hình. GUI chưa kết nối với Core và CSV nên các nút xử lý hiện vẫn bị khóa. Các chức năng mô phỏng đầy đủ sẽ được tích hợp trong giai đoạn tiếp theo.
-
 ## Chuẩn bị môi trường
 
 | Công cụ | Phiên bản |
@@ -100,9 +92,20 @@ Sau khi build, chạy:
 & "C:\Qt\Tools\CMake_64\bin\ctest.exe" --test-dir build --output-on-failure
 ```
 
-Bộ test hiện tại kiểm tra Core, gồm lựa chọn vùng nhớ, làm tròn, phân mảnh, gộp vùng, xử lý lỗi, Reset và tính độc lập của snapshot.
+CTest chạy ba mục:
 
-Kiểm thử CSV, Controller và GUI sẽ được bổ sung trong các giai đoạn tiếp theo.
+- `memory_manager` kiểm tra lựa chọn vùng nhớ, làm tròn, phân mảnh, gộp vùng, xử lý lỗi, reset và tính độc lập của snapshot.
+- `memory_stress` kiểm tra bất biến và số liệu sau từng sự kiện với ba workload, ba chiến lược và các quy mô 100, 1.000, 10.000 sự kiện.
+- `csv_handler` kiểm tra dữ liệu hợp lệ và không hợp lệ, vị trí lỗi, xuất trace và một ca đọc CSV → chạy Core → xuất trace.
+
+Benchmark Core chạy riêng. Dùng bản Release khi thu số liệu hiệu năng:
+
+```powershell
+.\build\test_memory_manager.exe --benchmark |
+    Set-Content .\build\memory-benchmark.csv -Encoding ascii
+```
+
+Benchmark dùng cùng workload và seed cho cả ba chiến lược. Mỗi tổ hợp có một lần khởi động và năm lần đo, với min, median và max ghi trong CSV.
 
 ## Dữ liệu đầu vào
 
@@ -142,13 +145,22 @@ Một PID đang giữ bộ nhớ không được cấp phát thêm lần nữa. 
 
 Quy tắc chi tiết được trình bày trong [đặc tả mô phỏng](report/spec.md).
 
+## Dữ liệu đầu ra mẫu
+
+Mẫu sử dụng [config_sample.csv](input/config_sample.csv) và [events_normal.csv](input/events_normal.csv). Cấu hình có tổng bộ nhớ 1.024 KB, đơn vị cấp phát 4 KB và chiến lược `ALL`. Mỗi chiến lược bắt đầu với trạng thái bộ nhớ riêng và xử lý đủ 10 sự kiện.
+
+- [`output/trace.csv`](output/trace.csv) có 30 dòng kết quả, ghi thao tác, trạng thái thành công/thất bại và chỉ số sau mỗi sự kiện.
+- [`output/blocks.csv`](output/blocks.csv) ghi các vùng nhớ sau mỗi sự kiện. Ghép theo cặp `strategy` và `step` để xem trạng thái tương ứng trong trace.
+
+Hai file ghi kết quả thực tế được tạo bằng cách gọi trực tiếp `CSVHandler::readConfig`, `CSVHandler::readEvents`, `MemoryManager::apply` và các hàm xuất của `CSVHandler`.
+
 ## Cấu trúc dự án
 
 | Thư mục/file | Nội dung |
 |---|---|
 | `source/` | Mã nguồn Core, CSV, Controller và GUI |
 | `input/` | Các bộ CSV đầu vào mẫu |
-| `output/` | Nơi lưu kết quả xuất |
+| `output/` | Kết quả xuất mẫu `trace.csv` và `blocks.csv` |
 | `tests/` | Mã kiểm thử và kết quả mong đợi |
 | `report/` | Đặc tả và tài liệu đồ án |
 | `CMakeLists.txt` | Cấu hình build và kiểm thử |
