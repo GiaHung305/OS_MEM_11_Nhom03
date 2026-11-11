@@ -5,7 +5,7 @@
 ### Sơ đồ luồng hoạt động tổng thể hệ thống (Architecture & Pipeline Flowchart)
 ```mermaid
 flowchart TD
-    A["CSV Input\n(config_sample.csv, events_*.csv)"] --> B["⚙️ CSV Reader & Kiểm tra hợp lệ\n(CSVHandler::readConfig, readEvents)"]
+    A["CSV Input\n(config_sample.csv, events_*.csv)"] --> B["CSV Reader & Kiểm tra hợp lệ\n(CSVHandler::readConfig, readEvents)"]
     B -->|"Config & vector<Event>"| C["Bộ điều phối mô phỏng\n(SimulationController)"]
     C -->|"Event (ALLOC / FREE)"| D["Lõi quản lý bộ nhớ\n(MemoryManager: First-Fit, Best-Fit, Worst-Fit)"]
     D -->|"StepResult (Blocks snapshot + Metrics)"| C
@@ -47,12 +47,3 @@ Nhóm 03 áp dụng quy trình phát triển phần mềm chuẩn mực hướng
 | **[Họ và tên Người 3]** | [MSSV 3] | Module CSV Reader/Writer (`csv_handler.h/.cpp`); xây dựng bộ dữ liệu kiểm thử (`config_sample.csv`, `events_*.csv`); thiết kế unit tests | **25%** | Hoàn thành tốt |
 | **[Họ và tên Người 4]** | [MSSV 4] | Thiết kế giao diện Qt6 Widgets (`main_window`, `memory_map_widget`); cài đặt bộ điều phối (`simulation_controller`); cấu hình CI/CD Windows | **25%** | Hoàn thành tốt |
 ---
-### 6.3. Nhật ký tiến độ thực hiện (Project Milestones)
-| Tuần | Nội dung công việc | Kết quả đạt được | Phụ trách chính |
-|:---:|:---|:---|:---:|
-| **Tuần 1** | Họp phân tích đề tài, thống nhất mô hình toán học và giả định, phác thảo `spec.md` | Hoàn thành tài liệu đặc tả ban đầu | Toàn đội *(Người 1 chủ trì)* |
-| **Tuần 2** | Thống nhất hợp đồng dữ liệu dùng chung `models.h`; phân chia 4 module độc lập | File `models.h` sẵn sàng, không lỗi cú pháp | Người 1, Người 2 |
-| **Tuần 3** | Cài đặt Core thuật toán `memory_manager.cpp`, viết unit tests kiểm tra tính bất biến | Core vượt qua các ca kiểm thử hồi quy | Người 2, Người 3 |
-| **Tuần 4** | Cài đặt module đọc/ghi CSV, chuẩn bị 5 kịch bản test biên và lỗi; dựng CI/CD | Pipeline GitHub Actions build & test pass | Người 3, Người 4 |
-| **Tuần 5** | Dựng giao diện Qt Widgets, vẽ thanh Memory Map động, hỗ trợ so sánh 3 chiến lược | Giao diện hoàn thiện bố cục | Người 4 |
-| **Tuần 6** | Tích hợp hệ thống, rà soát kết quả, vẽ flowchart kỹ thuật, đóng gói báo cáo hoàn chỉnh | Báo cáo hoàn chỉnh, demo chạy ổn định | Người 1 *(biên tập)*, Toàn đội |
