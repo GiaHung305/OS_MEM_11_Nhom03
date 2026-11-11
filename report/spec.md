@@ -229,8 +229,8 @@ void writeTrace(const std::string& path,
 Chỉ thay đổi quy tắc trong tài liệu này sau khi nhóm thống nhất, vì thay đổi có thể ảnh hưởng đồng thời đến thuật toán, CSV, GUI và test.
 
 
-# 12.TÀI LIỆU SƠ ĐỒ LƯU TRÌNH HỆ THỐNG (FLOWCHART)
-## Dự án: Mô phỏng cấp phát bộ nhớ liên tục – Nhóm 03 (OS_MEM_11)
+# 12.SƠ ĐỒ LƯU TRÌNH HỆ THỐNG 
+
 > **Mô tả:** Sơ đồ thể hiện luồng liên kết và truyền dữ liệu xuyên suốt giữa các tầng kiến trúc của chương trình theo đúng Mục 10 tài liệu đặc tả `report/spec.md`: Tầng Dữ liệu (CSV) $\rightarrow$ Tầng Điều phối (Simulation Controller) $\rightarrow$ Lõi thuật toán (Memory Manager Core) $\rightarrow$ Trạng thái kết quả (StepResult) $\rightarrow$ Giao diện hiển thị (Qt6 GUI) & Xuất tệp kết quả (`output/`).
 ---
 ### Sơ đồ luồng hoạt động tổng thể hệ thống (Architecture & Pipeline Flowchart)
@@ -255,16 +255,11 @@ flowchart TD
     class F,G output;
 ```
 ---
-### Nguyên tắc phân tầng cốt lõi (Separation of Concerns):
-1. **Tầng Dữ liệu (Input / Output):** Xử lý định dạng CSV, kiểm tra tính hợp lệ dữ liệu và ghi kết quả vết thực thi (`trace.csv`, `blocks.csv`).
-2. **Tầng Điều phối (Simulation Controller):** Quản lý chu trình chạy (Từng bước / Chạy tự động / Tạm dừng / Đặt lại), điều phối danh sách sự kiện đến các instance thuật toán.
-3. **Lõi thuật toán (Memory Manager Core):** Độc lập hoàn toàn với giao diện đồ họa. Nhận sự kiện `ALLOC` / `FREE`, thực thi 3 chiến lược (**First-Fit**, **Best-Fit**, **Worst-Fit**), tự động tách khối, gộp khối (`coalescing`) và tính toán các chỉ số phân mảnh (`MemoryMetrics`).
-4. **Tầng Hiển thị (Qt6 GUI):** Chỉ nhận `StepResult` snapshot để render sơ đồ thanh bộ nhớ động (`MemoryMapWidget`) và hiển thị bảng biểu, không tự can thiệp hay tính toán logic cấp phát.
 
-# 13. BẢNG PHÂN CÔNG TRÁCH NHIỆM & ĐÓNG GÓP THÀNH VIÊN
-## Dự án: Mô phỏng cấp phát bộ nhớ liên tục – Nhóm 03 (OS_MEM_11)
+# 13. BẢNG PHÂN THÀNH VIÊN
 ---
-### Bảng phân công công việc và đánh giá thành viên
+### Bảng phân thành viên
+
  STT | Họ và tên | MSSV | Vai trò / Vị trí | Nhiệm vụ / Output chịu trách nhiệm | Đánh giá |
 |:---:|:---|:---:|:---|:---|:---:|
 | 1 | **Lưu Nguyễn Anh Dũng** | `[Điền MSSV]` | Trưởng nhóm kiêm Quản lý Tích hợp & Tài liệu | Quản lý tích hợp hệ thống, tài liệu tổng thể, mô hình toán học & giả định, flowchart kiến trúc, điều phối và tổng hợp báo cáo | **20%** |
