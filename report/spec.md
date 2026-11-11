@@ -257,9 +257,8 @@ flowchart TD
 ---
 
 # 13. BẢNG PHÂN THÀNH VIÊN
----
-### Bảng phân thành viên
 
+### Bảng phân thành viên
  STT | Họ và tên | MSSV | Vai trò / Vị trí | Nhiệm vụ / Output chịu trách nhiệm | Đánh giá |
 |:---:|:---|:---:|:---|:---|:---:|
 | 1 | **Lưu Nguyễn Anh Dũng** | `[Điền MSSV]` | Trưởng nhóm kiêm Quản lý Tích hợp & Tài liệu | Quản lý tích hợp hệ thống, tài liệu tổng thể, mô hình toán học & giả định, flowchart kiến trúc, điều phối và tổng hợp báo cáo | **20%** |
