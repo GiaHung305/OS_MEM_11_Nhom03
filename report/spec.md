@@ -227,3 +227,49 @@ void writeTrace(const std::string& path,
 | Không ghi được output | Hiện lỗi đường dẫn/quyền ghi; kết quả trên màn hình vẫn được giữ. |
 
 Chỉ thay đổi quy tắc trong tài liệu này sau khi nhóm thống nhất, vì thay đổi có thể ảnh hưởng đồng thời đến thuật toán, CSV, GUI và test.
+
+
+# 12.TÀI LIỆU SƠ ĐỒ LƯU TRÌNH HỆ THỐNG (FLOWCHART)
+## Dự án: Mô phỏng cấp phát bộ nhớ liên tục – Nhóm 03 (OS_MEM_11)
+> **Mô tả:** Sơ đồ thể hiện luồng liên kết và truyền dữ liệu xuyên suốt giữa các tầng kiến trúc của chương trình theo đúng Mục 10 tài liệu đặc tả `report/spec.md`: Tầng Dữ liệu (CSV) $\rightarrow$ Tầng Điều phối (Simulation Controller) $\rightarrow$ Lõi thuật toán (Memory Manager Core) $\rightarrow$ Trạng thái kết quả (StepResult) $\rightarrow$ Giao diện hiển thị (Qt6 GUI) & Xuất tệp kết quả (`output/`).
+---
+### Sơ đồ luồng hoạt động tổng thể hệ thống (Architecture & Pipeline Flowchart)
+```mermaid
+flowchart TD
+    A["CSV Input\n(config_sample.csv, events_*.csv)"] --> B["CSV Reader & Kiểm tra hợp lệ\n(CSVHandler::readConfig, readEvents)"]
+    B -->|"Config & vector<Event>"| C["Bộ điều phối mô phỏng\n(SimulationController)"]
+    C -->|"Event (ALLOC / FREE)"| D["Lõi quản lý bộ nhớ\n(MemoryManager: First-Fit, Best-Fit, Worst-Fit)"]
+    D -->|"StepResult (Blocks snapshot + Metrics)"| C
+    C -->|"RunResult / StepResult"| E["StepResult\n(Trạng thái khối & Chỉ số phân mảnh)"]
+    E --> F["Giao diện người dùng\n(MainWindow & MemoryMapWidget - Qt6)"]
+    E --> G["CSV Writer - Xuất kết quả\n(trace.csv & blocks.csv)"]
+    classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef engine fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
+    classDef core fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    classDef result fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef output fill:#fce4ec,stroke:#c2185b,stroke-width:2px;
+    class A input;
+    class B,C engine;
+    class D core;
+    class E result;
+    class F,G output;
+```
+---
+### Nguyên tắc phân tầng cốt lõi (Separation of Concerns):
+1. **Tầng Dữ liệu (Input / Output):** Xử lý định dạng CSV, kiểm tra tính hợp lệ dữ liệu và ghi kết quả vết thực thi (`trace.csv`, `blocks.csv`).
+2. **Tầng Điều phối (Simulation Controller):** Quản lý chu trình chạy (Từng bước / Chạy tự động / Tạm dừng / Đặt lại), điều phối danh sách sự kiện đến các instance thuật toán.
+3. **Lõi thuật toán (Memory Manager Core):** Độc lập hoàn toàn với giao diện đồ họa. Nhận sự kiện `ALLOC` / `FREE`, thực thi 3 chiến lược (**First-Fit**, **Best-Fit**, **Worst-Fit**), tự động tách khối, gộp khối (`coalescing`) và tính toán các chỉ số phân mảnh (`MemoryMetrics`).
+4. **Tầng Hiển thị (Qt6 GUI):** Chỉ nhận `StepResult` snapshot để render sơ đồ thanh bộ nhớ động (`MemoryMapWidget`) và hiển thị bảng biểu, không tự can thiệp hay tính toán logic cấp phát.
+
+# 13. BẢNG PHÂN CÔNG TRÁCH NHIỆM & ĐÓNG GÓP THÀNH VIÊN
+## Dự án: Mô phỏng cấp phát bộ nhớ liên tục – Nhóm 03 (OS_MEM_11)
+---
+### Bảng phân công công việc và đánh giá thành viên
+ STT | Họ và tên | MSSV | Vai trò / Vị trí | Nhiệm vụ / Output chịu trách nhiệm | Đánh giá |
+|:---:|:---|:---:|:---|:---|:---:|
+| 1 | **Lưu Nguyễn Anh Dũng** | `[Điền MSSV]` | Trưởng nhóm kiêm Quản lý Tích hợp & Tài liệu | Quản lý tích hợp hệ thống, tài liệu tổng thể, mô hình toán học & giả định, flowchart kiến trúc, điều phối và tổng hợp báo cáo | **20%** |
+| 2 | **La Minh Nhựt** | `[Điền MSSV]` | Kỹ sư Lõi thuật toán<br>*(Core Logic Engineer)* | Module Core (`memory_manager.h/.cpp`): Cài đặt thuật toán First-Fit, Best-Fit, Worst-Fit; logic tách/gộp khối (`coalesce`), làm tròn đơn vị cấp phát, kiểm tra bất biến `validateState` | **20%** |
+| 3 | **Đào Thị Uyên Vy** | `[Điền MSSV]` | Kỹ sư Kiểm thử, Test Oracle & Hiệu năng | Xây dựng bộ test cases hồi quy (`test_memory_manager.cpp`), kiểm thử bất biến trạng thái, kiểm thử áp lực (stress test) và đo lường benchmark hiệu năng | **20%** |
+| 4 | **Nguyễn Gia Hưng** | `[Điền MSSV]` | Lập trình viên Giao diện GUI<br>*(GUI Developer)* | Thiết kế giao diện Qt6 Widgets (`main_window.ui/.cpp`), vẽ sơ đồ thanh bộ nhớ động (`memory_map_widget.cpp`), bộ điều phối mô phỏng (`simulation_controller.cpp`), cấu hình CI/CD GitHub Actions | **20%** |
+| 5 | **Huỳnh Long Phi** | `[Điền MSSV]` | Kỹ sư Xử lý dữ liệu CSV & Tài liệu kỹ thuật | Module CSV Reader/Writer (`csv_handler.h/.cpp`); xây dựng bộ dữ liệu kiểm thử input/output (`config_sample.csv`, `events_*.csv`); soạn thảo phụ lục kỹ thuật và đặc tả dữ liệu | **20%** |
+---
