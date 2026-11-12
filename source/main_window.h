@@ -20,6 +20,7 @@ public:
     // Phan tich hop goi sau khi da noi cac signal voi Controller/CSV.
     void setBackendReady(bool ready);
     void setUiState(UiState state);
+    void setScenarioStrategy(Strategy strategy);
     // Chi nhan ban sao ket qua de hien thi, khong chay thuat toan.
     void setRuns(const std::vector<RunResult>& runs);
     void showCsvError(const CsvError& error);
@@ -52,6 +53,7 @@ private:
     std::vector<RunResult> runs_;
     bool backendReady_ = false;
     UiState uiState_ = UiState::Empty;
+    Strategy scenarioStrategy_ = Strategy::All;
     void rebuildPanels();
     void updateControls();
     void renderRuns();

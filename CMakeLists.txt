@@ -13,6 +13,7 @@ qt_standard_project_setup()
 add_library(memory_core STATIC 
     source/memory_manager.cpp
     source/csv_handler.cpp
+    source/simulation_controller.cpp
 )
 target_include_directories(memory_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 set_target_properties(memory_core PROPERTIES AUTOMOC OFF AUTOUIC OFF)

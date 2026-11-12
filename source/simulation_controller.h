@@ -80,7 +80,7 @@ public:
     std::optional<MemorySnapshot> snapshotAfter(Strategy strategy,
                                                 std::size_t processedCount) const;
 
-    // Ly do that bai gan nhat cua loadScenario; rong neu lan goi do thanh cong.
+    // Loi gan nhat cua loadScenario/reset; rong sau khi thao tac thanh cong.
     const std::string& lastError() const;
 
 private:

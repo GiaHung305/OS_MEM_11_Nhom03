@@ -172,6 +172,15 @@ void MainWindow::setUiState(UiState state) {
     updateControls();
 }
 
+void MainWindow::setScenarioStrategy(Strategy strategy) {
+    scenarioStrategy_ = strategy;
+    strategy_->setCurrentIndex(static_cast<int>(strategy));
+    strategy_->setToolTip(strategy == Strategy::All
+        ? tr("Cấu hình ALL: xem riêng một chiến lược hoặc cả ba. Export gồm cả ba chiến lược.")
+        : tr("Phiên này chạy chiến lược được chọn trong config.csv."));
+    updateControls();
+}
+
 void MainWindow::updateControls() {
     const bool running = uiState_ == UiState::Running;
     const bool canStep = backendReady_ && (uiState_ == UiState::Ready || uiState_ == UiState::Paused);
@@ -187,7 +196,7 @@ void MainWindow::updateControls() {
     pause_->setEnabled(backendReady_ && running);
     reset_->setEnabled(backendReady_ && uiState_ != UiState::Empty);
     export_->setEnabled(backendReady_ && (uiState_ == UiState::Paused || uiState_ == UiState::Finished));
-    strategy_->setEnabled(!running);
+    strategy_->setEnabled(!running && scenarioStrategy_ == Strategy::All);
     speed_->setEnabled(backendReady_ && !running);
     history_->setEnabled(!running && history_->maximum() > 0);
     const QStringList states = {tr("Chưa nạp dữ liệu"), tr("Sẵn sàng"), tr("Đang chạy"), tr("Tạm dừng"), tr("Hoàn tất")};

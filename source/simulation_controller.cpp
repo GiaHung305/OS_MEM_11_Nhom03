@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <exception>
+#include <limits>
 #include <utility>
 
 #include "memory_manager.h"
@@ -27,10 +28,14 @@ std::string validateScenario(const Config& config, const std::vector<Event>& eve
         return "allocation_unit_kb phai thoa 0 < unit <= total_memory_kb";
     }
 
+    // Largest requested size that can round up to a representable multiple.
+    const int unit = config.allocationUnitKb;
+    const int maxRequest = (std::numeric_limits<int>::max() / unit) * unit;
     int previousStep = 0;
     for (std::size_t i = 0; i < events.size(); ++i) {
         const Event& e = events[i];
-        const std::string where = "event thu " + std::to_string(i + 1) + ": ";
+        const std::string where = "Su kien thu " + std::to_string(i + 1) +
+                                  " (step " + std::to_string(e.step) + "): ";
 
         if (e.step <= 0) {
             return where + "step phai > 0";
@@ -40,11 +45,16 @@ std::string validateScenario(const Config& config, const std::vector<Event>& eve
         }
         previousStep = e.step;
 
-        if (e.operation == OperationType::Allocate && e.requestedSizeKb <= 0) {
-            return where + "ALLOC can size_kb > 0";
-        }
-        if (e.operation == OperationType::Free && e.requestedSizeKb != 0) {
-            return where + "FREE phai co size_kb == 0";
+        switch (e.operation) {
+        case OperationType::Allocate:
+            if (e.requestedSizeKb <= 0) return where + "ALLOC can size_kb > 0";
+            if (e.requestedSizeKb > maxRequest) return where + "size_kb vuot INT_MAX sau khi lam tron";
+            break;
+        case OperationType::Free:
+            if (e.requestedSizeKb != 0) return where + "FREE phai co size_kb == 0";
+            break;
+        default:
+            return where + "operation phai la ALLOC hoac FREE";
         }
     }
     return {};
@@ -84,18 +94,27 @@ bool SimulationController::loadScenario(const Config& config,
         return false;
     }
 
-    if (!buildRuns(config, events)) {
+    // The caller may pass references to the old runs. Copy before buildRuns replaces them.
+    const Config nextConfig = config;
+    std::vector<Event> nextEvents;
+    try {
+        nextEvents = events;
+    } catch (const std::exception& ex) {
+        lastError_ = ex.what();
+        return false;
+    }
+    if (!buildRuns(nextConfig, nextEvents)) {
         return false;  // lastError_ da duoc ghi, state cu khong bi dong vao
     }
-    config_ = config;
-    events_ = events;
+    config_ = nextConfig;
+    events_ = std::move(nextEvents);
     lastError_.clear();
     return true;
 }
 
 void SimulationController::reset() {
-    if (hasScenario()) {
-        buildRuns(config_, events_);
+    if (hasScenario() && buildRuns(config_, events_)) {
+        lastError_.clear();
     }
 }
 
@@ -104,8 +123,7 @@ bool SimulationController::stepForward() {
         return false;
     }
 
-    // MemoryManager::apply khong nem exception: event loi (PID trung,
-    // khong tim thay PID, het cho...) van tra StepResult voi success=false.
+    // Core reports simulation failures (duplicate PID, out of memory, etc.) in StepResult.
     const Event& event = events_[processed_];
     for (std::size_t i = 0; i < runs_.size(); ++i) {
         StepResult result = managers_[i]->apply(event);
