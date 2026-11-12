@@ -1,7 +1,5 @@
 # Đặc tả mô phỏng cấp phát bộ nhớ liên tục
 
-Tài liệu này chốt cách mô phỏng, dữ liệu CSV và cách các phần của chương trình trao đổi dữ liệu. Đây là cơ sở chung để xây dựng thuật toán, xử lý CSV và giao diện.
-
 ## 1. Phạm vi mô phỏng
 
 Chương trình mô phỏng **cấp phát bộ nhớ liên tục động** (dynamic contiguous memory allocation) bằng ba chiến lược:
@@ -182,37 +180,6 @@ flowchart TD
     E --> G["CSV Writer"]
 ```
 
-Nguyên tắc quan trọng: GUI chỉ gửi thao tác và hiển thị `StepResult`. GUI không tự chọn vùng nhớ và không chứa thuật toán First-Fit, Best-Fit hoặc Worst-Fit.
-
-Core hiện dùng các model trong `source/models.h` và API trong `source/memory_manager.h`. Mỗi manager giữ một strategy cụ thể; `Strategy::All` dành cho Controller tạo ba manager độc lập. `apply(Event)` trả `StepResult` có blocks/metrics sau event, kể cả thất bại. Controller chưa triển khai; CSV Handler mới có hàm đọc/ghi bảng thô.
-
-API Core rút gọn đã triển khai (các API typed CSV bên dưới vẫn là dự kiến):
-
-```cpp
-class MemoryManager {
-public:
-    explicit MemoryManager(int totalMemoryKb, int allocationUnitKb = 4,
-                           Strategy strategy = Strategy::FirstFit);
-    StepResult apply(const Event& event);
-    void reset();
-    StepResult allocate(
-        int step,
-        const std::string& processId,
-        int requestedSizeKb
-    );
-    StepResult deallocate(int step, const std::string& processId);
-    std::vector<MemoryBlock> getBlocks() const;
-    MemoryMetrics getMetrics() const;
-    bool validateState() const;
-};
-
-// API typed CSV du kien, chua trien khai:
-Config readConfig(const std::string& path);
-std::vector<Event> readEvents(const std::string& path);
-void writeTrace(const std::string& path,
-                const std::vector<StepResult>& results);
-```
-
 ## 11. Xử lý lỗi
 
 | Trường hợp | Cách xử lý |
@@ -226,35 +193,85 @@ void writeTrace(const std::string& path,
 | Thu hồi PID không tồn tại | Ghi thất bại; trạng thái không đổi. |
 | Không ghi được output | Hiện lỗi đường dẫn/quyền ghi; kết quả trên màn hình vẫn được giữ. |
 
-Chỉ thay đổi quy tắc trong tài liệu này sau khi nhóm thống nhất, vì thay đổi có thể ảnh hưởng đồng thời đến thuật toán, CSV, GUI và test.
+## 12. Lưu đồ thuật toán chọn vùng nhớ
 
+### 12.1. First-Fit
 
-# 12.SƠ ĐỒ LƯU TRÌNH HỆ THỐNG 
+Chọn vùng trống đầu tiên đủ dung lượng khi duyệt theo địa chỉ tăng dần.
 
-> **Mô tả:** Sơ đồ thể hiện luồng liên kết và truyền dữ liệu xuyên suốt giữa các tầng kiến trúc của chương trình theo đúng Mục 10 tài liệu đặc tả `report/spec.md`: Tầng Dữ liệu (CSV) $\rightarrow$ Tầng Điều phối (Simulation Controller) $\rightarrow$ Lõi thuật toán (Memory Manager Core) $\rightarrow$ Trạng thái kết quả (StepResult) $\rightarrow$ Giao diện hiển thị (Qt6 GUI) & Xuất tệp kết quả (`output/`).
----
-### Sơ đồ luồng hoạt động tổng thể hệ thống (Architecture & Pipeline Flowchart)
 ```mermaid
 flowchart TD
-    A["CSV Input\n(config_sample.csv, events_*.csv)"] --> B["CSV Reader & Kiểm tra hợp lệ\n(CSVHandler::readConfig, readEvents)"]
-    B -->|"Config & vector<Event>"| C["Bộ điều phối mô phỏng\n(SimulationController)"]
-    C -->|"Event (ALLOC / FREE)"| D["Lõi quản lý bộ nhớ\n(MemoryManager: First-Fit, Best-Fit, Worst-Fit)"]
-    D -->|"StepResult (Blocks snapshot + Metrics)"| C
-    C -->|"RunResult / StepResult"| E["StepResult\n(Trạng thái khối & Chỉ số phân mảnh)"]
-    E --> F["Giao diện người dùng\n(MainWindow & MemoryMapWidget - Qt6)"]
-    E --> G["CSV Writer - Xuất kết quả\n(trace.csv & blocks.csv)"]
-    classDef input fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef engine fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
-    classDef core fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
-    classDef result fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
-    classDef output fill:#fce4ec,stroke:#c2185b,stroke-width:2px;
-    class A input;
-    class B,C engine;
-    class D core;
-    class E result;
-    class F,G output;
+    A([Bắt đầu]) --> B[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
+    B --> C["Xét vùng nhớ đầu tiên"]
+    C --> D{"Còn vùng nhớ để xét?"}
+    D -->|Có| E{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
+    E -->|Không| F["Chuyển sang vùng nhớ tiếp theo"]
+    F --> D
+    E -->|Có| G["Chọn vùng đang xét"]
+    G --> H["Cấp phát từ đầu vùng<br/>Tách phần dư thành vùng trống nếu có"]
+    H --> I[/"Thông báo cấp phát thành công"/]
+    D -->|Không| J[/"Thông báo cấp phát thất bại<br/>Giữ nguyên trạng thái bộ nhớ"/]
+    I --> K([Kết thúc])
+    J --> K
 ```
----
+
+### 12.2. Best-Fit
+
+Duyệt theo địa chỉ tăng dần, chọn vùng trống đủ dung lượng có kích thước nhỏ nhất.
+
+```mermaid
+flowchart TD
+    BF_START([Bắt đầu Best-Fit])
+    BF_START --> BF_INPUT[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
+    BF_INPUT --> BF_INIT["Khởi tạo: chưa chọn vùng nào"]
+    BF_INIT --> BF_FIRST["Xét vùng nhớ đầu tiên"]
+    BF_FIRST --> BF_MORE{"Còn vùng nhớ để xét?"}
+    BF_MORE -->|Có| BF_FITS{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
+    BF_FITS -->|Không| BF_NEXT["Chuyển sang vùng nhớ tiếp theo"]
+    BF_FITS -->|Có| BF_EMPTY{"Chưa chọn vùng nào?"}
+    BF_EMPTY -->|Có| BF_SELECT["Cập nhật vùng được chọn<br/>bằng vùng đang xét"]
+    BF_EMPTY -->|Không| BF_BETTER{"Vùng đang xét nhỏ hơn<br/>vùng được chọn?"}
+    BF_BETTER -->|Có| BF_SELECT
+    BF_BETTER -->|Không| BF_NEXT
+    BF_SELECT --> BF_NEXT
+    BF_NEXT --> BF_MORE
+    BF_MORE -->|Không| BF_FOUND{"Đã chọn được vùng phù hợp?"}
+    BF_FOUND -->|Có| BF_ALLOC["Cấp phát từ đầu vùng được chọn<br/>Tách phần dư thành vùng trống nếu có"]
+    BF_ALLOC --> BF_SUCCESS[/"Thông báo cấp phát thành công"/]
+    BF_FOUND -->|Không| BF_FAIL[/"Thông báo cấp phát thất bại<br/>Giữ nguyên trạng thái bộ nhớ"/]
+    BF_SUCCESS --> BF_END([Kết thúc])
+    BF_FAIL --> BF_END
+```
+
+### 12.3. Worst-Fit
+
+Duyệt theo địa chỉ tăng dần, chọn vùng trống đủ dung lượng có kích thước lớn nhất.
+
+```mermaid
+flowchart TD
+    WF_START([Bắt đầu Worst-Fit])
+    WF_START --> WF_INPUT[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
+    WF_INPUT --> WF_INIT["Khởi tạo: chưa chọn vùng nào"]
+    WF_INIT --> WF_FIRST["Xét vùng nhớ đầu tiên"]
+    WF_FIRST --> WF_MORE{"Còn vùng nhớ để xét?"}
+    WF_MORE -->|Có| WF_FITS{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
+    WF_FITS -->|Không| WF_NEXT["Chuyển sang vùng nhớ tiếp theo"]
+    WF_FITS -->|Có| WF_EMPTY{"Chưa chọn vùng nào?"}
+    WF_EMPTY -->|Có| WF_SELECT["Cập nhật vùng được chọn<br/>bằng vùng đang xét"]
+    WF_EMPTY -->|Không| WF_BETTER{"Vùng đang xét lớn hơn<br/>vùng được chọn?"}
+    WF_BETTER -->|Có| WF_SELECT
+    WF_BETTER -->|Không| WF_NEXT
+    WF_SELECT --> WF_NEXT
+    WF_NEXT --> WF_MORE
+    WF_MORE -->|Không| WF_FOUND{"Đã chọn được vùng phù hợp?"}
+    WF_FOUND -->|Có| WF_ALLOC["Cấp phát từ đầu vùng được chọn<br/>Tách phần dư thành vùng trống nếu có"]
+    WF_ALLOC --> WF_SUCCESS[/"Thông báo cấp phát thành công"/]
+    WF_FOUND -->|Không| WF_FAIL[/"Thông báo cấp phát thất bại<br/>Giữ nguyên trạng thái bộ nhớ"/]
+    WF_SUCCESS --> WF_END([Kết thúc])
+    WF_FAIL --> WF_END
+```
+
+Nếu hai vùng trống có cùng kích thước, Best-Fit và Worst-Fit giữ vùng được chọn trước, tức vùng có địa chỉ thấp nhất.
 
 # 13. BẢNG PHÂN THÀNH VIÊN
 
