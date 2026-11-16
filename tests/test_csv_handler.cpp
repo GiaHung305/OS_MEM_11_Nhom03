@@ -1,5 +1,6 @@
 #include "csv_handler.h"
 #include "memory_manager.h"
+#include "simulation_controller.h"
 
 #include <cmath>
 #include <filesystem>
@@ -7,6 +8,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -280,7 +282,7 @@ void testExportErrorHandling() {
   CHECK(!ok);
 }
 
-void testCoreIntegrationAndExpected() {
+void testCoreIntegration() {
   const std::string cfgPath = "temp_integ_cfg.csv";
   const std::string evtPath = "temp_integ_evt.csv";
   const std::string outPath = "temp_integ_out.csv";
@@ -312,20 +314,78 @@ void testCoreIntegrationAndExpected() {
 
   CHECK(CSVHandler::exportTraceCSV(outPath, results, "."));
 
-  std::string expectedPath = "tests/expected/sample_integration_expected.csv";
-  if (fs::exists(expectedPath)) {
-    std::string actualContent = readTextFile(outPath);
-    std::string expectedContent = readTextFile(expectedPath);
-    CHECK(actualContent == expectedContent);
-  }
-
   removeTempFile(cfgPath);
   removeTempFile(evtPath);
   removeTempFile(outPath);
 }
 
-int main() {
+static void checkTraceMatches(const fs::path &expectedPath,
+                              const fs::path &actualPath) {
+  std::ifstream expected(expectedPath, std::ios::binary);
+  std::ifstream actual(actualPath, std::ios::binary);
+  if (!expected) {
+    throw std::runtime_error("Cannot open expected trace: " + expectedPath.u8string());
+  }
+  if (!actual) {
+    throw std::runtime_error("Cannot open actual trace: " + actualPath.u8string());
+  }
+
+  const auto readLine = [](std::istream &stream, std::string &line) {
+    if (!std::getline(stream, line)) return false;
+    // Allow LF and CRLF without ignoring other differences in the CSV.
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    return true;
+  };
+  std::string expectedLine;
+  std::string actualLine;
+  for (std::size_t line = 1;; ++line) {
+    const bool hasExpected = readLine(expected, expectedLine);
+    const bool hasActual = readLine(actual, actualLine);
+    if (expected.bad() || actual.bad()) {
+      throw std::runtime_error("Cannot read trace while comparing " + expectedPath.u8string());
+    }
+    if (!hasExpected && !hasActual) break;
+    if (hasExpected != hasActual || expectedLine != actualLine) {
+      throw std::runtime_error(expectedPath.filename().u8string() + ":" +
+                               std::to_string(line) + " trace mismatch\nExpected: " +
+                               (hasExpected ? expectedLine : "<end of file>") +
+                               "\nActual:   " + (hasActual ? actualLine : "<end of file>"));
+    }
+  }
+}
+
+void testCompareTraceAgainstExpected(const fs::path &sourceDir) {
+  const auto inputDir = (sourceDir / "input").u8string();
+  const auto config = CSVHandler::readConfig("config_sample.csv", inputDir);
+  const auto events = CSVHandler::readEvents("events_compare.csv", inputDir);
+  CHECK(config.value && !config.error);
+  CHECK(events.value && !events.error && !events.value->empty());
+
+  SimulationController controller;
+  CHECK(controller.loadScenario(*config.value, *events.value));
+  CHECK(controller.runToEnd() == events.value->size());
+
+  const std::pair<Strategy, const char *> cases[] = {
+      {Strategy::FirstFit, "first_fit"},
+      {Strategy::BestFit, "best_fit"},
+      {Strategy::WorstFit, "worst_fit"}};
+  for (const auto &[strategy, name] : cases) {
+    const auto *run = controller.runFor(strategy);
+    CHECK(run != nullptr);
+    const std::string actualFile = std::string("temp_compare_") + name + "_actual.csv";
+    const auto expectedFile = sourceDir / "tests" / "expected" /
+                              (std::string(name) + "_expected.csv");
+    CHECK(CSVHandler::exportTraceCSV(actualFile, run->results, "."));
+    checkTraceMatches(expectedFile, actualFile);
+    removeTempFile(actualFile);
+  }
+}
+
+int main(int argc, char *argv[]) {
   try {
+    if (argc != 2) {
+      throw std::runtime_error("Usage: test_csv_handler <source-directory>");
+    }
     testValidFiles();
     testCsvStructure();
     testInvalidConfig();
@@ -337,7 +397,8 @@ int main() {
     testAtomicLoading();
     testExportAndEscaping();
     testExportErrorHandling();
-    testCoreIntegrationAndExpected();
+    testCoreIntegration();
+    testCompareTraceAgainstExpected(fs::path(argv[1]));
 
     std::cout << "All CSV Handler test cases passed successfully!\n";
     return 0;

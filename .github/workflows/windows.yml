@@ -49,6 +49,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item README.md dist/OS_MEM_11/
           Copy-Item input dist/OS_MEM_11/input -Recurse
+          New-Item -ItemType Directory -Path dist/OS_MEM_11/output, dist/OS_MEM_11/report -Force | Out-Null
+          Copy-Item output/trace.csv, output/blocks.csv dist/OS_MEM_11/output/
+          Copy-Item report/spec.md, report/memory-benchmark.csv, report/benchmark-results.md dist/OS_MEM_11/report/
 
       - name: Check packaged application starts without Qt in PATH
         run: |

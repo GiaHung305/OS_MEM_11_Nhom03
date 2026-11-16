@@ -109,6 +109,7 @@ total_memory_kb,allocation_unit_kb,strategy
 | `strategy` | Chiến lược chạy | `FIRST_FIT`, `BEST_FIT`, `WORST_FIT` hoặc `ALL`. |
 
 `ALL` nghĩa là chạy cùng một danh sách thao tác độc lập với cả ba chiến lược để so sánh.
+Giá trị `strategy` trong file config quyết định số lượt mô phỏng. Trong GUI, khi config là `ALL`, hộp chọn chiến lược chỉ thay đổi cách hiển thị một hoặc ba lượt chạy; thao tác Export vẫn ghi kết quả của cả ba. Với config chọn một chiến lược cụ thể, hộp chọn không thay đổi chiến lược đã nạp.
 
 ## 8. File sự kiện (ví dụ `input/events_normal.csv`)
 
@@ -136,9 +137,11 @@ Quy tắc khi chạy:
 
 File `input/events_invalid.csv` là ví dụ dữ liệu sai để kiểm tra xử lý lỗi.
 
+Parser chấp nhận UTF-8 có BOM và bỏ qua dòng trắng. Config cần đúng một dòng dữ liệu; file events có header hợp lệ nhưng không có sự kiện vẫn đọc thành công. Trường dữ liệu nằm trên một dòng, có thể được đặt trong dấu nháy kép theo quy tắc CSV. Khi một dòng sai, hàm đọc trả lỗi kèm đường dẫn và vị trí áp dụng được, không trả danh sách sự kiện đã nạp một phần; GUI giữ phiên hợp lệ trước đó. Controller cũng kiểm tra các giá trị đầu vào trước khi tạo lượt chạy, gồm trường hợp kích thước cấp phát sau làm tròn vượt giới hạn `int`.
+
 ## 9. Dữ liệu đầu ra
 
-Chương trình dự kiến xuất hai loại CSV.
+Chương trình xuất hai loại CSV. File mẫu trong `output/` được tạo từ `input/config_sample.csv` và `input/events_compare.csv` gồm 12 sự kiện chạy theo cả ba chiến lược.
 
 ### `output/trace.csv`
 
@@ -158,6 +161,8 @@ Trong đó:
 - `external_fragmentation_kb = total_free_kb - largest_free_block_kb`.
 - `external_fragmentation_ratio`: bằng 0 nếu không còn bộ nhớ trống; ngược lại bằng `external_fragmentation_kb / total_free_kb`.
 
+Mỗi sự kiện đã xử lý, kể cả thất bại, tạo một dòng trace cho mỗi chiến lược đang chạy. `FREE` và `ALLOC` thất bại có `allocated_size_kb = 0`; thất bại không thay đổi trạng thái bộ nhớ. Tỷ lệ phân mảnh được xuất với bốn chữ số thập phân. Trạng thái ban đầu là snapshot bước 0, không phải một dòng sự kiện trong trace.
+
 ### `output/blocks.csv`
 
 Mỗi vùng nhớ tại mỗi bước là một dòng:
@@ -167,6 +172,7 @@ strategy,step,block_index,start_address_kb,size_kb,is_free,pid,requested_size_kb
 ```
 
 Hai file đầu ra phải đủ thông tin để tái tạo Memory Map tại bất kỳ bước nào.
+Các dòng block được nhóm theo cặp `(strategy, step)` và sắp theo `block_index`; địa chỉ kết thúc của mỗi block là `start_address_kb + size_kb` và không nằm trong block. Khi Export giữa chừng, hai file chỉ chứa các sự kiện đã xử lý đến thời điểm đó.
 
 ## 10. Cách nối các phần chương trình
 
@@ -179,6 +185,14 @@ flowchart TD
     E --> F["Qt GUI / Memory Map"]
     E --> G["CSV Writer"]
 ```
+
+`SimulationController::loadScenario` nạp toàn bộ cấu hình và sự kiện; `stepForward` là thao tác xử lý một event được cả nút Next và bộ hẹn giờ Run sử dụng. `reset` dựng lại các state ban đầu. GUI đọc `runs` để vẽ Memory Map, bảng block, trace và metrics theo cùng chỉ số sự kiện; API `snapshotAfter` cho phép truy vấn một snapshot đã xử lý. GUI không tự tính lại chỉ số bộ nhớ hay chọn hole.
+
+### Kiểm thử và đo hiệu năng
+
+CTest có ba mục `memory_manager`, `memory_stress` và `csv_handler`. Kiểm thử CSV đọc workload `events_compare.csv`, chạy `SimulationController`, xuất trace của từng chiến lược rồi so từng dòng với ba file trong `tests/expected/`. File expected thiếu hoặc dòng sai làm test thất bại. Stress test sử dụng ba workload và các cỡ 100, 1.000, 10.000 sự kiện.
+
+Benchmark Core chạy riêng ở bản Release. Phương pháp đo, bảng median và dữ liệu thô của một lần chạy được lưu tại [benchmark-results.md](benchmark-results.md) và [memory-benchmark.csv](memory-benchmark.csv). Thời gian benchmark không bao gồm thao tác GUI hay ghi CSV.
 
 ## 11. Xử lý lỗi
 

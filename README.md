@@ -59,7 +59,7 @@ Lệnh này chỉ có hiệu lực trong terminal hiện tại. Khi mở termina
 ### 2. Cấu hình dự án
 
 ```powershell
-cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="C:/Qt/6.12.0/mingw_64"
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_PREFIX_PATH="C:/Qt/6.12.0/mingw_64"
 ```
 
 ### 3. Build
@@ -84,6 +84,16 @@ Lệnh này chép Qt DLL và các thư viện cần thiết vào thư mục buil
 
 Sau lần build đầu tiên, nếu chỉ sửa code, bạn thường chỉ cần thiết lập lại PATH, build và chạy. Nếu tạo lại thư mục build hoặc đổi phiên bản Qt, thực hiện lại đầy đủ các bước trên.
 
+## Sử dụng giao diện
+
+1. Chọn `input/config_sample.csv` và `input/events_compare.csv`, rồi bấm **Nạp CSV**. Ứng dụng kiểm tra cả hai file trước khi thay phiên mô phỏng hiện tại.
+2. Bấm **Next** để xử lý một sự kiện hoặc chọn thời gian giữa các bước rồi bấm **Run**. **Pause** dừng chạy tự động; **Reset** đưa các chiến lược về trạng thái ban đầu.
+3. Xem Memory Map, bảng vùng nhớ, chỉ số và trace. Chọn một dòng trace hoặc thay số bước lịch sử để xem trạng thái sau sự kiện đó. Bước 0 là trạng thái ban đầu.
+4. Khi config chọn `ALL`, hộp chiến lược chỉ đổi góc nhìn giữa từng thuật toán và **Compare All**; cả ba mô phỏng vẫn được chạy và xuất độc lập. Nếu config chọn một chiến lược, giao diện chỉ chạy chiến lược đó.
+5. Khi tạm dừng hoặc hoàn tất, bấm **Export**, chọn thư mục đích để ghi `trace.csv` và `blocks.csv`. Export chỉ gồm các bước đã xử lý.
+
+File `events_invalid.csv` dùng để thử thông báo lỗi nạp dữ liệu; chương trình giữ phiên hợp lệ trước đó khi nạp file lỗi.
+
 ## Chạy kiểm thử
 
 Sau khi build, chạy:
@@ -96,16 +106,16 @@ CTest chạy ba mục:
 
 - `memory_manager` kiểm tra lựa chọn vùng nhớ, làm tròn, phân mảnh, gộp vùng, xử lý lỗi, reset và tính độc lập của snapshot.
 - `memory_stress` kiểm tra bất biến và số liệu sau từng sự kiện với ba workload, ba chiến lược và các quy mô 100, 1.000, 10.000 sự kiện.
-- `csv_handler` kiểm tra dữ liệu hợp lệ và không hợp lệ, vị trí lỗi, xuất trace và một ca đọc CSV → chạy Core → xuất trace.
+- `csv_handler` kiểm tra dữ liệu hợp lệ và không hợp lệ, vị trí lỗi, xuất trace, tích hợp CSV → Core và đối chiếu kết quả của ba chiến lược với `tests/expected/`.
 
 Benchmark Core chạy riêng. Dùng bản Release khi thu số liệu hiệu năng:
 
 ```powershell
 .\build\test_memory_manager.exe --benchmark |
-    Set-Content .\build\memory-benchmark.csv -Encoding ascii
+    Set-Content .\report\memory-benchmark.csv -Encoding ascii
 ```
 
-Benchmark dùng cùng workload và seed cho cả ba chiến lược. Mỗi tổ hợp có một lần khởi động và năm lần đo, với min, median và max ghi trong CSV.
+Benchmark dùng cùng workload và seed cho cả ba chiến lược. Mỗi tổ hợp có một lần khởi động và năm lần đo, với min, median và max ghi trong CSV. Số liệu của một lần chạy Release đã được lưu tại [report/memory-benchmark.csv](report/memory-benchmark.csv); bảng tóm tắt và phương pháp nằm trong [report/benchmark-results.md](report/benchmark-results.md). Lệnh trên ghi đè CSV đã lưu, nên hãy dùng tên file khác nếu muốn giữ bộ số liệu hiện tại.
 
 ## Dữ liệu đầu vào
 
@@ -147,12 +157,12 @@ Quy tắc chi tiết được trình bày trong [đặc tả mô phỏng](report
 
 ## Dữ liệu đầu ra mẫu
 
-Mẫu sử dụng [config_sample.csv](input/config_sample.csv) và [events_normal.csv](input/events_normal.csv). Cấu hình có tổng bộ nhớ 1.024 KB, đơn vị cấp phát 4 KB và chiến lược `ALL`. Mỗi chiến lược bắt đầu với trạng thái bộ nhớ riêng và xử lý đủ 10 sự kiện.
+Mẫu sử dụng [config_sample.csv](input/config_sample.csv) và [events_compare.csv](input/events_compare.csv). Cấu hình có tổng bộ nhớ 1.024 KB, đơn vị cấp phát 4 KB và chiến lược `ALL`. Mỗi chiến lược bắt đầu với trạng thái bộ nhớ riêng và xử lý đủ 12 sự kiện.
 
-- [`output/trace.csv`](output/trace.csv) có 30 dòng kết quả, ghi thao tác, trạng thái thành công/thất bại và chỉ số sau mỗi sự kiện.
+- [`output/trace.csv`](output/trace.csv) có 36 dòng kết quả, ghi thao tác, trạng thái thành công/thất bại và chỉ số sau mỗi sự kiện.
 - [`output/blocks.csv`](output/blocks.csv) ghi các vùng nhớ sau mỗi sự kiện. Ghép theo cặp `strategy` và `step` để xem trạng thái tương ứng trong trace.
 
-Hai file ghi kết quả thực tế được tạo bằng cách gọi trực tiếp `CSVHandler::readConfig`, `CSVHandler::readEvents`, `MemoryManager::apply` và các hàm xuất của `CSVHandler`.
+Hai file ghi kết quả thực tế được tạo từ cấu hình và 12 sự kiện trên bằng `CSVHandler`, `SimulationController` và các hàm xuất của `CSVHandler`. Ba file trong `tests/expected/` là kết quả mong đợi để kiểm tra trace của từng chiến lược.
 
 ## Cấu trúc dự án
 
@@ -162,7 +172,7 @@ Hai file ghi kết quả thực tế được tạo bằng cách gọi trực ti
 | `input/` | Các bộ CSV đầu vào mẫu |
 | `output/` | Kết quả xuất mẫu `trace.csv` và `blocks.csv` |
 | `tests/` | Mã kiểm thử và kết quả mong đợi |
-| `report/` | Đặc tả và tài liệu đồ án |
+| `report/` | Đặc tả, bảng benchmark và số liệu thô |
 | `CMakeLists.txt` | Cấu hình build và kiểm thử |
 | `build/` | File sinh ra khi build, không đưa lên Git |
 
@@ -181,6 +191,7 @@ GitHub Actions được cấu hình để build, chạy test và đóng gói ứ
 5. Giải nén toàn bộ và mở `OS_MEM_11.exe`.
 
 Gói này có kèm DLL nên không cần cài Qt để chạy. Chức năng của gói phụ thuộc vào tiến độ mã nguồn tại lần build đó.
+Gói gồm `input/`, hai file output mẫu và tài liệu trong `report/` để các liên kết tương ứng trong README hoạt động sau khi giải nén.
 
 CI hiện dùng Qt 6.8.3 và MinGW 13.1, khác với phiên bản Qt trong hướng dẫn build trên máy cá nhân.
 

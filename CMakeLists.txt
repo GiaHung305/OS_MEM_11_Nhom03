@@ -37,7 +37,7 @@ if(BUILD_TESTING)
     add_executable(test_csv_handler tests/test_csv_handler.cpp)
     target_link_libraries(test_csv_handler PRIVATE memory_core)
     set_target_properties(test_csv_handler PROPERTIES AUTOMOC OFF AUTOUIC OFF)
-    add_test(NAME csv_handler COMMAND test_csv_handler)
+    add_test(NAME csv_handler COMMAND test_csv_handler "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 if(MSVC)
