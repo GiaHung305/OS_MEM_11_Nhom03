@@ -148,7 +148,7 @@ CsvParseResult<Config> CSVHandler::readConfig(const std::string &filename, const
             return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Sai dữ liệu config"}};
         if (st.fields[2] != "FIRST_FIT" && st.fields[2] != "BEST_FIT" &&
             st.fields[2] != "WORST_FIT" && st.fields[2] != "ALL")
-            return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "strategy ph?i l? FIRST_FIT, BEST_FIT, WORST_FIT ho?c ALL"}};
+            return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "strategy phải là FIRST_FIT, BEST_FIT, WORST_FIT hoặc ALL"}};
 
         // Store valid config values
         cfg.totalMemoryKb = m;
