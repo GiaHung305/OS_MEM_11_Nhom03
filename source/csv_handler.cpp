@@ -140,15 +140,14 @@ CsvParseResult<Config> CSVHandler::readConfig(const std::string &filename, const
 
         // Ensure there is only one data row with 3 columns
         if (st.fields.size() != 3 || hasConfig)
-            return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Config ph?i c? ??ng m?t d?ng d? li?u g?m 3 c?t"}};
-
+            return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Config phải có đúng một dòng dữ liệu gồm 3 cột"}};
         // Validate total memory, unit size, and strategy name
         int m = 0, u = 0;
         if (!toInt(st.fields[0], m) || !toInt(st.fields[1], u) || u > m || st.fields[2].empty())
             return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Sai dữ liệu config"}};
         if (st.fields[2] != "FIRST_FIT" && st.fields[2] != "BEST_FIT" &&
             st.fields[2] != "WORST_FIT" && st.fields[2] != "ALL")
-            return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "strategy ph?i l? FIRST_FIT, BEST_FIT, WORST_FIT ho?c ALL"}};
+            return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "strategy phải là FIRST_FIT, BEST_FIT, WORST_FIT hoặc ALL"}};
 
         // Store valid config values
         cfg.totalMemoryKb = m;
@@ -193,7 +192,7 @@ CsvParseResult<std::vector<Event>> CSVHandler::readEvents(const std::string &fil
         }
 
         if (st.fields.size() != 4)
-            return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Events ph?i c? ??ng 4 c?t: step,operation,pid,size_kb"}};
+            return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Events phải có đúng 4 cột: step,operation,pid,size_kb"}};
 
         // Check that step number is positive and strictly increasing
         int step = 0, sz = 0;
@@ -210,7 +209,7 @@ CsvParseResult<std::vector<Event>> CSVHandler::readEvents(const std::string &fil
         if (!std::all_of(pid.begin(), pid.end(), [](unsigned char c) {
             return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
                    (c >= '0' && c <= '9') || c == '_' || c == '-';
-        })) return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "PID ch? ???c ch?a ch?, s?, _ v? -"}};
+        })) return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "PID chỉ được chứa chữ, số, _ và -"}};
         if (pid.empty()) return {std::nullopt, CsvError{p.u8string(), lineNum, 3, "PID rỗng"}};
 
         // Validate size column: empty for FREE, positive integer for ALLOC
@@ -224,8 +223,8 @@ CsvParseResult<std::vector<Event>> CSVHandler::readEvents(const std::string &fil
     }
 
     // STEP 3: Check for read errors or empty file before returning events
-    if (f.bad()) return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "L?i ??c file"}};
-    if (!head) return {std::nullopt, CsvError{p.u8string(), 0, 0, "File events tr?ng"}};
+    if (f.bad()) return {std::nullopt, CsvError{p.u8string(), lineNum, 0, "Lỗi đọc file"}};
+    if (!head) return {std::nullopt, CsvError{p.u8string(), 0, 0, "File events trống"}};
     return {evs, std::nullopt};
 }
 
