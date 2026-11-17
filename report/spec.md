@@ -216,8 +216,8 @@ Chọn vùng trống đầu tiên đủ dung lượng khi duyệt theo địa ch
 ```mermaid
 flowchart TD
     A([Bắt đầu]) --> B[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
-    B --> C["Đặt vị trí duyệt tại vùng nhớ đầu tiên"]
-    C --> D{"Còn vùng nhớ chưa duyệt?"}
+    B --> C["Bắt đầu từ đầu danh sách vùng nhớ"]
+    C --> D{"Có vùng nhớ tại vị trí đang xét?"}
     D -->|Có| E{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
     E -->|Không| F["Chuyển sang vùng nhớ tiếp theo"]
     F --> D
@@ -238,8 +238,8 @@ flowchart TD
     BF_START([Bắt đầu Best-Fit])
     BF_START --> BF_INPUT[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
     BF_INPUT --> BF_INIT["Khởi tạo: chưa ghi nhận vùng phù hợp"]
-    BF_INIT --> BF_FIRST["Đặt vị trí duyệt tại vùng nhớ đầu tiên"]
-    BF_FIRST --> BF_MORE{"Còn vùng nhớ chưa duyệt?"}
+    BF_INIT --> BF_FIRST["Bắt đầu từ đầu danh sách vùng nhớ"]
+    BF_FIRST --> BF_MORE{"Có vùng nhớ tại vị trí đang xét?"}
     BF_MORE -->|Có| BF_FITS{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
     BF_FITS -->|Không| BF_NEXT["Chuyển sang vùng nhớ tiếp theo"]
     BF_FITS -->|Có| BF_EMPTY{"Đây là vùng phù hợp đầu tiên?"}
@@ -266,8 +266,8 @@ flowchart TD
     WF_START([Bắt đầu Worst-Fit])
     WF_START --> WF_INPUT[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
     WF_INPUT --> WF_INIT["Khởi tạo: chưa ghi nhận vùng phù hợp"]
-    WF_INIT --> WF_FIRST["Đặt vị trí duyệt tại vùng nhớ đầu tiên"]
-    WF_FIRST --> WF_MORE{"Còn vùng nhớ chưa duyệt?"}
+    WF_INIT --> WF_FIRST["Bắt đầu từ đầu danh sách vùng nhớ"]
+    WF_FIRST --> WF_MORE{"Có vùng nhớ tại vị trí đang xét?"}
     WF_MORE -->|Có| WF_FITS{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
     WF_FITS -->|Không| WF_NEXT["Chuyển sang vùng nhớ tiếp theo"]
     WF_FITS -->|Có| WF_EMPTY{"Đây là vùng phù hợp đầu tiên?"}
@@ -287,7 +287,7 @@ flowchart TD
 
 Nếu hai vùng trống có cùng kích thước, Best-Fit và Worst-Fit giữ ứng viên được ghi nhận trước, tức vùng có địa chỉ thấp nhất.
 
-Trong ba lưu đồ, bước "Đặt vị trí duyệt tại vùng nhớ đầu tiên" chỉ khởi tạo vị trí, chưa kiểm tra vùng đó. Nhánh "Không" của "Còn vùng nhớ chưa duyệt?" nghĩa là đã duyệt hết danh sách. Với Best-Fit và Worst-Fit, vùng phù hợp đầu tiên được ghi nhận làm ứng viên; các vùng phù hợp tiếp theo được so với ứng viên để giữ vùng nhỏ nhất hoặc lớn nhất. Sau khi duyệt hết, nếu còn ứng viên thì cấp phát từ vùng đó, nếu không thì báo thất bại.
+Trong ba lưu đồ, "Bắt đầu từ đầu danh sách vùng nhớ" chỉ xác định vị trí đầu tiên để kiểm tra. Nếu tại vị trí đang xét có vùng nhớ, thuật toán kiểm tra vùng đó; nếu không, danh sách đã được duyệt hết. Với Best-Fit và Worst-Fit, vùng phù hợp đầu tiên được ghi nhận làm ứng viên; các vùng phù hợp tiếp theo được so với ứng viên để giữ vùng nhỏ nhất hoặc lớn nhất. Sau khi duyệt hết, nếu còn ứng viên thì cấp phát từ vùng đó, nếu không thì báo thất bại.
 
 # 13. BẢNG PHÂN THÀNH VIÊN
 
