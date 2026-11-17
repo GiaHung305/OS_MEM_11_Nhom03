@@ -28,6 +28,7 @@ QRectF MemoryMapWidget::blockRect(const MemoryBlock& block) const {
     return {8 + block.startAddressKb * scale, 25, block.allocatedSizeKb * scale, 52};
 }
 void MemoryMapWidget::paintEvent(QPaintEvent*) {
+    // Vẽ lên chính widget này. Qt gọi hàm khi có yêu cầu cập nhật hoặc đổi kích thước.
     QPainter p(this);
     if (total_ <= 0) { p.drawText(rect(), Qt::AlignCenter, tr("Chưa có dữ liệu")); return; }
     p.setPen(QColor("#475569")); p.drawText(8, 17, "0 KB");
@@ -56,6 +57,7 @@ bool MemoryMapWidget::event(QEvent* event) {
                 .arg(block.allocatedSizeKb).arg(block.requestedSizeKb), this);
             return true;
         }
+        // Nếu chuột ở ngoài các block, ẩn tooltip còn hiện từ lần trước.
         QToolTip::hideText(); return true;
     }
     // Chuyển các sự kiện khác cho lớp cha xử lý theo mặc định.

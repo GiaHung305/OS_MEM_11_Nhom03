@@ -14,6 +14,7 @@ using UiState = MainWindow::UiState;
 
 void exportResults(MainWindow& window, const SimulationController& controller,
                    const QString& directory) {
+    // Gom kết quả đã xử lý của mọi chiến lược, kể cả những panel đang ẩn.
     std::vector<StepResult> results;
     for (const auto& run : controller.runs()) {
         results.insert(results.end(), run.results.begin(), run.results.end());
@@ -35,6 +36,7 @@ void exportResults(MainWindow& window, const SimulationController& controller,
 }
 
 void connectSimulation(MainWindow& window, SimulationController& controller, QTimer& timer) {
+    // Đưa kết quả mới lên cửa sổ rồi cập nhật trạng thái nút.
     const auto showResults = [&] {
         window.setRuns(controller.runs());
         if (controller.isFinished()) {
@@ -46,12 +48,14 @@ void connectSimulation(MainWindow& window, SimulationController& controller, QTi
         }
     };
 
+    // Next và timer dùng chung một bước. Sự kiện ALLOC thất bại vẫn có kết quả để hiển thị.
     const auto advance = [&, showResults] {
         const bool advanced = controller.stepForward();
         if (!advanced || controller.isFinished()) timer.stop();
         if (advanced) showResults();
     };
 
+    // Chỉ thay phiên mô phỏng sau khi đọc thành công cả hai file.
     QObject::connect(&window, &MainWindow::loadRequested, &window,
         [&, showResults](const QString& configPath, const QString& eventsPath) {
             const auto config = CSVHandler::readConfig(QFileInfo(configPath).absoluteFilePath().toStdString(), {});
@@ -87,6 +91,7 @@ void connectSimulation(MainWindow& window, SimulationController& controller, QTi
         timer.stop();
         window.setUiState(UiState::Paused);
     });
+    // Dừng timer trước khi tạo lại trạng thái ban đầu.
     QObject::connect(&window, &MainWindow::resetRequested, &window, [&, showResults] {
         timer.stop();
         controller.reset();
@@ -112,5 +117,6 @@ int main(int argc, char* argv[]) {
     MainWindow window;
     connectSimulation(window, controller, timer);
     window.show();
+    // Vòng lặp Qt tiếp nhận thao tác người dùng, yêu cầu vẽ và tín hiệu timer.
     return app.exec();
 }

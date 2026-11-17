@@ -18,6 +18,7 @@
 #include <QVBoxLayout>
 namespace {
 QTableWidget* table(const QStringList& headers, QWidget* parent) {
+    // Tạo bảng trống có số cột bằng số tiêu đề và thuộc widget cha.
     auto* result = new QTableWidget(0, headers.size(), parent);
     result->setHorizontalHeaderLabels(headers);
     result->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -36,6 +37,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1280, 850);
     auto* central = new QWidget(this);
     setCentralWidget(central);
+    // Layout xếp các nhóm giao diện theo chiều dọc và tính lại vị trí khi đổi kích thước cửa sổ.
     auto* layout = new QVBoxLayout(central);
     auto* title = new QLabel(tr("Mô phỏng cấp phát bộ nhớ liên tục"), central);
     title->setStyleSheet("font-size:22px; font-weight:600; color:#0f766e; padding:6px;");
@@ -94,6 +96,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(load_, &QPushButton::clicked, this, [this] {
         emit loadRequested(configPath_->text().trimmed(), eventsPath_->text().trimmed());
     });
+    // Chuyển thao tác bấm nút thành tín hiệu yêu cầu xử lý mô phỏng.
     connect(next_, &QPushButton::clicked, this, &MainWindow::nextRequested);
     connect(run_, &QPushButton::clicked, this, [this] { emit runRequested(speed_->value()); });
     connect(pause_, &QPushButton::clicked, this, &MainWindow::pauseRequested);
@@ -102,6 +105,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         const auto directory = QFileDialog::getExistingDirectory(this, tr("Chọn thư mục xuất CSV"));
         if (!directory.isEmpty()) emit exportRequested(directory);
     });
+    // Đổi chỉ số lịch sử chỉ cập nhật phần hiển thị từ dữ liệu đã lưu.
     connect(history_, &QSpinBox::valueChanged, this, &MainWindow::showSnapshot);
     strategy_->setCurrentIndex(3);
     connect(strategy_, &QComboBox::currentIndexChanged, this, [this](int index) {
@@ -113,6 +117,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setBackendReady(false);
 }
 void MainWindow::rebuildPanels() {
+    // Dọn các panel cũ rồi dựng lại theo góc nhìn được chọn.
     while (auto* item = panelsLayout_->takeAt(0)) { delete item->widget(); delete item; }
     panels_.clear();
     const QStringList names = {"First-Fit", "Best-Fit", "Worst-Fit"};
@@ -152,6 +157,7 @@ void MainWindow::rebuildPanels() {
         connect(trace, &QTableWidget::cellClicked, this, [this](int row, int) { history_->setValue(row + 1); });
         connect(trace->verticalScrollBar(), &QScrollBar::valueChanged, this, [this,trace](int value) {
             for (const auto& panel : panels_) if (panel.trace != trace) {
+                // Chặn tín hiệu khi đồng bộ thanh cuộn để tránh các panel gọi lẫn nhau.
                 QSignalBlocker blocker(panel.trace->verticalScrollBar());
                 panel.trace->verticalScrollBar()->setValue(value);
             }
@@ -182,6 +188,7 @@ void MainWindow::setScenarioStrategy(Strategy strategy) {
 }
 
 void MainWindow::updateControls() {
+    // Dùng trạng thái hiện tại để quyết định người dùng có thể bấm nút nào.
     const bool running = uiState_ == UiState::Running;
     const bool canStep = backendReady_ && (uiState_ == UiState::Ready || uiState_ == UiState::Paused);
     configPath_->setEnabled(!running);
@@ -262,6 +269,7 @@ void MainWindow::showSnapshot(int index) {
             panel.message->setText(tr("Message: chưa có dữ liệu"));
             continue;
         }
+        // Vị trí lịch sử 0 là trạng thái ban đầu. Vị trí 1 là phần tử đầu tiên của results.
         const StepResult* result = index > 0 && index <= static_cast<int>(run->results.size())
             ? &run->results[index - 1] : nullptr;
         const auto& blocks = result ? result->blocks : run->initialState.blocks;
