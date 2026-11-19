@@ -176,15 +176,9 @@ Các dòng block được nhóm theo cặp `(strategy, step)` và sắp theo `bl
 
 ## 10. Cách nối các phần chương trình
 
-```mermaid
-flowchart TD
-    A["CSV input"] --> B["CSV Reader + kiểm tra"]
-    B --> C["Simulation Controller"]
-    C --> D["Memory Manager"]
-    D --> E["StepResult"]
-    E --> F["Qt GUI / Memory Map"]
-    E --> G["CSV Writer"]
-```
+![Sơ đồ kết nối CSV input, CSV Reader, Simulation Controller, Memory Manager, StepResult, Qt GUI và CSV Writer](diagrams/architecture.png)
+
+[Mã nguồn sơ đồ Mermaid](diagrams/architecture.mmd).
 
 `SimulationController::loadScenario` nạp toàn bộ cấu hình và sự kiện; `stepForward` là thao tác xử lý một event được cả nút Next và bộ hẹn giờ Run sử dụng. `reset` dựng lại các state ban đầu. GUI đọc `runs` để vẽ Memory Map, bảng block, trace và metrics theo cùng chỉ số sự kiện; API `snapshotAfter` cho phép truy vấn một snapshot đã xử lý. GUI không tự tính lại chỉ số bộ nhớ hay chọn hole.
 
@@ -215,18 +209,18 @@ Chọn vùng trống đầu tiên đủ dung lượng khi duyệt theo địa ch
 
 ```mermaid
 flowchart TD
-    A([Bắt đầu]) --> B[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
-    B --> C["Bắt đầu từ đầu danh sách vùng nhớ"]
-    C --> D{"Có vùng nhớ tại vị trí đang xét?"}
-    D -->|Có| E{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
-    E -->|Không| F["Chuyển sang vùng nhớ tiếp theo"]
-    F --> D
-    E -->|Có| G["Chọn vùng đang xét"]
-    G --> H["Cấp phát từ đầu vùng<br/>Tách phần dư thành vùng trống nếu có"]
-    H --> I[/"Thông báo cấp phát thành công"/]
-    D -->|Không| J[/"Thông báo cấp phát thất bại<br/>Giữ nguyên trạng thái bộ nhớ"/]
-    I --> K([Kết thúc])
-    J --> K
+    FF_A([Bắt đầu]) --> FF_B[/"Nhận danh sách vùng nhớ<br/>và dung lượng cần cấp sau làm tròn"/]
+    FF_B --> FF_C["Bắt đầu từ đầu danh sách vùng nhớ"]
+    FF_C --> FF_D{"Có vùng nhớ tại vị trí đang xét?"}
+    FF_D -->|Có| FF_E{"Vùng đang xét trống<br/>và đủ dung lượng cần cấp?"}
+    FF_E -->|Không| FF_F["Chuyển sang vùng nhớ tiếp theo"]
+    FF_F --> FF_D
+    FF_E -->|Có| FF_G["Chọn vùng đang xét"]
+    FF_G --> FF_H["Cấp phát từ đầu vùng<br/>Tách phần dư thành vùng trống nếu có"]
+    FF_H --> FF_I[/"Thông báo cấp phát thành công"/]
+    FF_D -->|Không| FF_J[/"Thông báo cấp phát thất bại<br/>Giữ nguyên trạng thái bộ nhớ"/]
+    FF_I --> FF_K([Kết thúc])
+    FF_J --> FF_K
 ```
 
 ### 12.2. Best-Fit
