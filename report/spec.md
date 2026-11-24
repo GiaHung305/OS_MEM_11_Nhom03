@@ -176,9 +176,15 @@ Các dòng block được nhóm theo cặp `(strategy, step)` và sắp theo `bl
 
 ## 10. Cách nối các phần chương trình
 
-![Sơ đồ kết nối CSV input, CSV Reader, Simulation Controller, Memory Manager, StepResult, Qt GUI và CSV Writer](diagrams/architecture.png)
-
-[Mã nguồn sơ đồ Mermaid](diagrams/architecture.mmd).
+```mermaid
+flowchart TD
+    ARCH_INPUT["CSV input"] --> ARCH_READER["CSV Reader + kiểm tra"]
+    ARCH_READER --> ARCH_CONTROLLER["Simulation Controller"]
+    ARCH_CONTROLLER --> ARCH_MANAGER["Memory Manager"]
+    ARCH_MANAGER --> ARCH_RESULT["StepResult"]
+    ARCH_RESULT --> ARCH_GUI["Qt GUI / Memory Map"]
+    ARCH_RESULT --> ARCH_WRITER["CSV Writer"]
+```
 
 `SimulationController::loadScenario` nạp toàn bộ cấu hình và sự kiện; `stepForward` là thao tác xử lý một event được cả nút Next và bộ hẹn giờ Run sử dụng. `reset` dựng lại các state ban đầu. GUI đọc `runs` để vẽ Memory Map, bảng block, trace và metrics theo cùng chỉ số sự kiện; API `snapshotAfter` cho phép truy vấn một snapshot đã xử lý. GUI không tự tính lại chỉ số bộ nhớ hay chọn hole.
 
