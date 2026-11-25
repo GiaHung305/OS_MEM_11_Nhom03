@@ -67,6 +67,9 @@ vcpkg_installed/
 Testing/
 .cache/
 
+# Local VS Code configuration (machine-specific Qt/MinGW paths)
+/.vscode/
+
 # Local Codex guidance; keep it out of the repository
 /AGENTS.md
 /CODEX_PROJECT_CONTEXT_OS_MEM_11.md
